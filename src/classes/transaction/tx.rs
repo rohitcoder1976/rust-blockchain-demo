@@ -1,6 +1,8 @@
-// use lamport_signature::key_pair::{Key, KeyBlock};
-use crate::classes::lamport_signature::key_pair::{Key, KeyBlock};
 use sha2::{Sha256, Digest};
+
+use crate::classes::lamport_signature::key_pair::{Key, KeyBlock};
+use crate::classes::transaction::tx;
+use crate::util::conversions::hex_string_to_bit_vector;
 
 pub struct Tx {
     pub inputs: Vec<TxInput>,
@@ -39,19 +41,55 @@ impl Tx {
         let hex_result = result.iter().map(|byte| format!("{:02x}", byte)).collect::<String>();
         return hex_result;
     }
-}
 
-pub struct TxOutput {
-    pub pub_key: Key,
-    pub amount: u64,
-}
+    pub fn verify_signature(&self, pub_key: &Key) -> bool {
+        let tx_hash_bits: Vec<u8> = hex_string_to_bit_vector(self.get_tx_hash());
+        let mut verified: bool = true;
 
-impl TxOutput {
-    pub fn new(pub_key: Key, amount: u64) -> TxOutput {
-        return TxOutput {
-            pub_key: pub_key,
-            amount: amount
-        };
+        for input in &self.inputs {
+            let input_signature: &[KeyBlock; 256] = &input.signature;
+            let mut mismatched_blocks: u16 = 0;
+
+            println!("{}\n", input_signature[0].first_part);
+
+            let mut j= 0;
+            for bit in &tx_hash_bits {
+                if *bit == (0 as u8) {
+                    // get the corresponding public key block from zero blocks
+                    let pub_key_block: KeyBlock = pub_key.zero_blocks[j].clone();
+                    // construct it yourself using the signature blocks that are supposed to be chosen from the private key blocks
+                    let constructed_pub_key_block: KeyBlock = input_signature[j].hash_priv_key_block();
+
+                    // if they don't match, set verified to false
+                    if pub_key_block.first_part != constructed_pub_key_block.first_part || pub_key_block.second_part != constructed_pub_key_block.second_part {
+                        verified = false;
+                        mismatched_blocks += 1;
+                        println!("Mismatch at key block {} (zero row)", j);
+                        println!("Pubkey first part: {0}, Constructed Pubkey first part: {1}", pub_key_block.first_part, constructed_pub_key_block.first_part);
+                        println!("Pubkey second part: {0}, Constructed Pubkey second part: {1} \n", pub_key_block.second_part, constructed_pub_key_block.second_part);
+
+                    }
+                } else {
+                    // repeat the same process as above but for one blocks
+                    let pub_key_block: KeyBlock = pub_key.one_blocks[j].clone();
+                    let constructed_pub_key_block: KeyBlock = input_signature[j].hash_priv_key_block();
+
+
+                    if pub_key_block.first_part != constructed_pub_key_block.first_part || pub_key_block.second_part != constructed_pub_key_block.second_part {
+                        verified = false;
+                        mismatched_blocks += 1;
+                        println!("Mismatch at key block {} (one row)", j);
+                        println!("Pubkey first part: {0}, Constructed Pubkey first part: {1}", pub_key_block.first_part, constructed_pub_key_block.first_part);
+                        println!("Pubkey second part: {0}, Constructed Pubkey second part: {1}\n", pub_key_block.second_part, constructed_pub_key_block.second_part);
+                    }
+                }
+                j += 1;
+            }
+
+            println!("Number of mismatched blocks: {}", mismatched_blocks);
+        }
+        
+        return verified;
     }
 }
 
@@ -67,6 +105,20 @@ impl TxInput {
             signature: signature,
             prev_tx_id: prev_tx_id,
             is_coinbase: is_coinbase
+        };
+    }
+}
+
+pub struct TxOutput {
+    pub pub_key: Key,
+    pub amount: u64,
+}
+
+impl TxOutput {
+    pub fn new(pub_key: Key, amount: u64) -> TxOutput {
+        return TxOutput {
+            pub_key: pub_key,
+            amount: amount
         };
     }
 }

@@ -2,6 +2,9 @@ use rand::Rng;
 use sha2::{Digest, Sha256};
 use std::array;
 
+use crate::Tx;
+use crate::util::conversions::hex_string_to_bit_vector;
+
 pub struct KeyPair {
     pub priv_key: Key,
     pub pub_key: Key
@@ -24,7 +27,7 @@ impl KeyPair {
                 second_part: rng.gen()
             };  
 
-            pub_key_zero_blocks[i] = hash_priv_key_block(&priv_key_zero_blocks[i]);
+            pub_key_zero_blocks[i] = priv_key_zero_blocks[i].hash_priv_key_block();
 
             /* repeat the same process as above but for the one part */
             priv_key_one_blocks[i] = KeyBlock {
@@ -32,8 +35,7 @@ impl KeyPair {
                 second_part: rng.gen()
             };
 
-            pub_key_one_blocks[i] = hash_priv_key_block(&priv_key_one_blocks[i]);
-
+            pub_key_one_blocks[i] = priv_key_one_blocks[i].hash_priv_key_block();
         }
 
         return KeyPair {
@@ -51,19 +53,16 @@ impl KeyPair {
     
     }
 
-    pub fn create_signature(&self, msg: &str) -> [KeyBlock; 256]{
+    pub fn create_signature(&self, tx: &Tx) -> [KeyBlock; 256]{
         // hash the message
-        let mut hasher = Sha256::new();
-        hasher.update(&msg);
-        let msg_hash = hasher.finalize();
-        let msg_hash_bits: String = msg_hash.iter().map(|byte| format!("{:08b}", byte)).collect();
+        let msg_hash_bits: Vec<u8> = hex_string_to_bit_vector(tx.get_tx_hash());
 
         let mut signature_priv_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
 
         // assign blocks to the signature blocks, zero or one blocks based on each bit of the hashed message
         let mut i: usize = 0; 
-        for bit in msg_hash_bits.chars()  {
-            if bit == '0' {
+        for bit in msg_hash_bits {
+            if bit == 0 {
                 signature_priv_blocks[i] = self.priv_key.zero_blocks[i].clone();
             } else {
                 signature_priv_blocks[i] = self.priv_key.one_blocks[i].clone();
@@ -91,17 +90,19 @@ pub struct KeyBlock {
     pub second_part: u128,
 }
 
-fn hash_priv_key_block(block: &KeyBlock) -> KeyBlock{
-    let block_bytes: Vec<u8> = [block.first_part.to_be_bytes(), block.second_part.to_be_bytes()].concat();
-    let mut hasher = Sha256::new();
-    hasher.update(&block_bytes);
-    let block_hashed = hasher.finalize();
-    let block_hashed_part1 = u128::from_be_bytes(block_hashed[0..16].try_into().expect("slice with incorrect length"));
-    let block_hashed_part2: u128 = u128::from_be_bytes(block_hashed[16..32].try_into().expect("slice with incorrect length"));
-    return KeyBlock {
-        first_part: block_hashed_part1,
-        second_part: block_hashed_part2
-    };
+impl KeyBlock {
+    pub fn hash_priv_key_block(&self) -> KeyBlock{
+        let block_bytes: Vec<u8> = [self.first_part.to_be_bytes(), self.second_part.to_be_bytes()].concat();
+        let mut hasher = Sha256::new();
+        hasher.update(&block_bytes);
+        let block_hashed = hasher.finalize();
+        let block_hashed_part1 = u128::from_be_bytes(block_hashed[0..16].try_into().expect("slice with incorrect length"));
+        let block_hashed_part2: u128 = u128::from_be_bytes(block_hashed[16..32].try_into().expect("slice with incorrect length"));
+        return KeyBlock {
+            first_part: block_hashed_part1,
+            second_part: block_hashed_part2
+        };
+    }
 }
 
 pub fn initialize_empty_key_blocks() -> [KeyBlock; 256] {
