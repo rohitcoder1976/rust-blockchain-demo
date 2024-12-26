@@ -11,11 +11,11 @@ impl KeyPair {
     pub fn new() -> Self { 
         let mut rng = rand::thread_rng();
 
-        let mut priv_key_zero_blocks: [KeyBlock; 256] = initialize_empty_blocks();
-        let mut priv_key_one_blocks: [KeyBlock; 256] = initialize_empty_blocks();
+        let mut priv_key_zero_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
+        let mut priv_key_one_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
 
-        let mut pub_key_zero_blocks: [KeyBlock; 256] = initialize_empty_blocks();
-        let mut pub_key_one_blocks: [KeyBlock; 256] = initialize_empty_blocks();
+        let mut pub_key_zero_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
+        let mut pub_key_one_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
 
         for i in 0..256 {
             /* generate block with random u128 values for privKey zero part, and hash them to create a zero block for the public key */
@@ -51,8 +51,33 @@ impl KeyPair {
     
     }
 
+    pub fn create_signature(&self, msg: &str) -> [KeyBlock; 256]{
+        // hash the message
+        let mut hasher = Sha256::new();
+        hasher.update(&msg);
+        let msg_hash = hasher.finalize();
+        let msg_hash_bits: String = msg_hash.iter().map(|byte| format!("{:08b}", byte)).collect();
+
+        let mut signature_priv_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
+
+        // assign blocks to the signature blocks, zero or one blocks based on each bit of the hashed message
+        let mut i: usize = 0; 
+        for bit in msg_hash_bits.chars()  {
+            if bit == '0' {
+                signature_priv_blocks[i] = self.priv_key.zero_blocks[i].clone();
+            } else {
+                signature_priv_blocks[i] = self.priv_key.one_blocks[i].clone();
+            }
+            i += 1;
+        }
+
+        // return the signature blocks and the public key
+        return signature_priv_blocks;
+    }
+
 }
 
+#[derive(Clone)]
 pub struct Key {
     pub zero_blocks: [KeyBlock; 256],
     pub one_blocks: [KeyBlock; 256],  
@@ -60,6 +85,7 @@ pub struct Key {
 }
 
 /* Each key block, in order to meet the 256 bits length requirement, must be two u128 integers stuck together, rather than a simple primitive type. */
+#[derive(Clone)]
 pub struct KeyBlock {
     pub first_part: u128,
     pub second_part: u128,
@@ -78,7 +104,7 @@ fn hash_priv_key_block(block: &KeyBlock) -> KeyBlock{
     };
 }
 
-fn initialize_empty_blocks() -> [KeyBlock; 256] {
+pub fn initialize_empty_key_blocks() -> [KeyBlock; 256] {
     return array::from_fn(|_| KeyBlock {
         first_part: 0,
         second_part: 0,

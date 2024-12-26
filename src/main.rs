@@ -1,13 +1,22 @@
 mod classes;
 
-use classes::lamport_signature::key_pair::{KeyPair, KeyBlock};
-use std::mem;
+use classes::lamport_signature::key_pair::{KeyPair, KeyBlock, Key, initialize_empty_key_blocks};
+use classes::transaction::tx::{Tx, TxInput, TxOutput};
 
 fn main() {
     println!("Hello, world!");
-    let new_key_pair: KeyPair = KeyPair::new();
-    println!("{}", new_key_pair.priv_key.zero_blocks[0].first_part);
-    let total_priv_key_size: u16 = (mem::size_of::<[KeyBlock; 256]>() as u16) / (1000 as u16);
-    println!("Total Private Key Size: {} KB", total_priv_key_size);
-    println!("Total Key Pair Size: {} KB", total_priv_key_size*2);
+    let new_key_pair1: KeyPair = KeyPair::new();
+    let signature: [KeyBlock; 256] = new_key_pair1.create_signature("Hello!");
+    
+    let mut tx_inputs: Vec<TxInput> = Vec::new();
+    let prev_tx_id = String::new();
+    tx_inputs.push(TxInput::new(initialize_empty_key_blocks(), prev_tx_id, true));
+
+    let mut tx_outputs: Vec<TxOutput> = Vec::new();
+    tx_outputs.push(TxOutput::new(new_key_pair1.pub_key.clone(), 100));
+
+    let new_tx = Tx::new(tx_inputs, tx_outputs);
+    let tx_hash = new_tx.get_tx_hash();
+
+    
 }
