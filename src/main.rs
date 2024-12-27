@@ -2,6 +2,8 @@ mod classes;
 mod util;
 mod data_structures;
 
+use classes::block::block::Block;
+use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, KeyBlock, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
 use rand::Rng;
@@ -22,7 +24,12 @@ fn main() {
     let signature: [KeyBlock; 256] = new_key_pair1.create_signature(&new_tx);
     new_tx.inputs[0].signature = signature;
 
-    println!("Transaction is verified: {}", new_tx.verify_signature(&new_key_pair1.pub_key));
+    println!("Transaction is verified: {}\n", new_tx.verify_signature(&new_key_pair1.pub_key));
+    let mut tx_vec: Vec<Tx> = vec![];
+    tx_vec.push(new_tx);
+
+    let mut new_block: Block = Block::new(&tx_vec);
+    new_block.mine_block();
 }
 
 #[warn(dead_code)]
