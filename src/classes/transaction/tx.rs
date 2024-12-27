@@ -3,6 +3,7 @@ use sha2::{Sha256, Digest};
 use crate::classes::lamport_signature::key_pair::{Key, KeyBlock};
 use crate::util::conversions::hex_string_to_bit_vector;
 
+#[derive(Clone)]
 pub struct Tx {
     pub inputs: Vec<TxInput>,
     pub outputs: Vec<TxOutput>,    
@@ -14,6 +15,57 @@ impl Tx {
             inputs: inputs,
             outputs: outputs
         };
+    }
+
+    pub fn convert_tx_to_bytes(&self) -> Vec<u8> {
+        let mut bytes: Vec<u8> = vec![];
+        for input in &self.inputs {
+            bytes.push(if input.is_coinbase {1} else {0});
+            let prev_tx_id_bytes = input.prev_tx_id.as_bytes();
+            for byte in prev_tx_id_bytes {
+                bytes.push(*byte);
+            }
+            for signature_block in &input.signature {
+                let first_part_bytes: [u8; 16] = signature_block.first_part.to_be_bytes();
+                let second_part_bytes: [u8; 16] = signature_block.second_part.to_be_bytes();
+
+                for byte in first_part_bytes {
+                    bytes.push(byte);
+                }
+
+                for byte in second_part_bytes {
+                    bytes.push(byte);
+                }
+            }
+        }
+
+        for output in &self.outputs {
+            for pub_key_zero_block in &output.pub_key.zero_blocks {
+                let block_bytes: Vec<u8> = [
+                    pub_key_zero_block.first_part.to_be_bytes(),
+                    pub_key_zero_block.second_part.to_be_bytes()
+                ].concat();
+                for byte in block_bytes {
+                    bytes.push(byte);
+                }
+            }
+
+            for pub_key_one_block in &output.pub_key.one_blocks {
+                let block_bytes = [
+                    pub_key_one_block.first_part.to_be_bytes(),
+                    pub_key_one_block.second_part.to_be_bytes()
+                ].concat();
+                for byte in block_bytes {
+                    bytes.push(byte);
+                }
+            }
+
+            let amount_bytes = &output.amount.to_be_bytes();
+            for byte in amount_bytes {
+                bytes.push(*byte);
+            }
+        }
+        return bytes.clone();
     }
 
     pub fn get_tx_hash(&self) -> String{
@@ -29,6 +81,14 @@ impl Tx {
                 let block_bytes = [
                     pub_key_zero_block.first_part.to_be_bytes(),
                     pub_key_zero_block.second_part.to_be_bytes()
+                ].concat();
+                hasher.update(&block_bytes);
+            }
+
+            for pub_key_one_block in &output.pub_key.one_blocks {
+                let block_bytes = [
+                    pub_key_one_block.first_part.to_be_bytes(),
+                    pub_key_one_block.second_part.to_be_bytes()
                 ].concat();
                 hasher.update(&block_bytes);
             }
@@ -78,6 +138,7 @@ impl Tx {
     }
 }
 
+#[derive(Clone)]
 pub struct TxInput {
     pub signature: [KeyBlock; 256],
     pub prev_tx_id: String,
@@ -94,6 +155,7 @@ impl TxInput {
     }
 }
 
+#[derive(Clone)]
 pub struct TxOutput {
     pub pub_key: Key,
     pub amount: u64,

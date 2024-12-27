@@ -1,6 +1,6 @@
 use rand::Rng;
 use sha2::{Digest, Sha256};
-use std::array;
+use std::{array, vec};
 
 use crate::Tx;
 use crate::util::conversions::hex_string_to_bit_vector;
@@ -81,6 +81,31 @@ pub struct Key {
     pub zero_blocks: [KeyBlock; 256],
     pub one_blocks: [KeyBlock; 256],  
     pub is_private: bool,
+}
+
+impl Key {
+    pub fn convert_key_to_bytes(&self) -> Vec<u8> {
+        let mut bytes: Vec<u8> = vec![];
+        bytes.push(if self.is_private {1 as u8} else {0 as u8});
+        
+        for i in 0..256 {
+            let zero_block: &KeyBlock = &self.zero_blocks[i];
+            let one_block = &self.one_blocks[i];
+            
+            let zero_block_bytes: Vec<u8> = [zero_block.first_part.to_be_bytes(), zero_block.second_part.to_be_bytes()].concat();
+            let one_block_bytes = [one_block.first_part.to_be_bytes(), one_block.second_part.to_be_bytes()].concat();
+
+            for byte in zero_block_bytes {
+                bytes.push(byte);
+            }
+
+            for byte in one_block_bytes {
+                bytes.push(byte);
+            }
+        }
+        
+        return bytes.clone();
+    }
 }
 
 /* Each key block, in order to meet the 256 bits length requirement, must be two u128 integers stuck together, rather than a simple primitive type. */
