@@ -1,7 +1,6 @@
 use sha2::{Sha256, Digest};
 
 use crate::classes::lamport_signature::key_pair::{Key, KeyBlock};
-use crate::classes::transaction::tx;
 use crate::util::conversions::hex_string_to_bit_vector;
 
 pub struct Tx {
@@ -48,9 +47,6 @@ impl Tx {
 
         for input in &self.inputs {
             let input_signature: &[KeyBlock; 256] = &input.signature;
-            let mut mismatched_blocks: u16 = 0;
-
-            println!("{}\n", input_signature[0].first_part);
 
             let mut j= 0;
             for bit in &tx_hash_bits {
@@ -63,11 +59,6 @@ impl Tx {
                     // if they don't match, set verified to false
                     if pub_key_block.first_part != constructed_pub_key_block.first_part || pub_key_block.second_part != constructed_pub_key_block.second_part {
                         verified = false;
-                        mismatched_blocks += 1;
-                        println!("Mismatch at key block {} (zero row)", j);
-                        println!("Pubkey first part: {0}, Constructed Pubkey first part: {1}", pub_key_block.first_part, constructed_pub_key_block.first_part);
-                        println!("Pubkey second part: {0}, Constructed Pubkey second part: {1} \n", pub_key_block.second_part, constructed_pub_key_block.second_part);
-
                     }
                 } else {
                     // repeat the same process as above but for one blocks
@@ -77,16 +68,10 @@ impl Tx {
 
                     if pub_key_block.first_part != constructed_pub_key_block.first_part || pub_key_block.second_part != constructed_pub_key_block.second_part {
                         verified = false;
-                        mismatched_blocks += 1;
-                        println!("Mismatch at key block {} (one row)", j);
-                        println!("Pubkey first part: {0}, Constructed Pubkey first part: {1}", pub_key_block.first_part, constructed_pub_key_block.first_part);
-                        println!("Pubkey second part: {0}, Constructed Pubkey second part: {1}\n", pub_key_block.second_part, constructed_pub_key_block.second_part);
                     }
                 }
                 j += 1;
             }
-
-            println!("Number of mismatched blocks: {}", mismatched_blocks);
         }
         
         return verified;
