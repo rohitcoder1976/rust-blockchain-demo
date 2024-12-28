@@ -1,8 +1,10 @@
 use rand::Rng;
 use sha2::{Sha256, Digest};
 use hex;
-use chrono::Utc;
+use chrono::Utc; 
+use bincode;
 
+#[derive(serde::Serialize)]
 pub struct BlockHeader {
     merkle_root: String,
     pub nonce: u128,
@@ -23,22 +25,18 @@ impl BlockHeader {
     }
 
     pub fn hash_block(&self) -> String {
-        let mut bytes: Vec<u8> = vec![];
-        for byte in self.merkle_root.as_bytes() {
-            bytes.push(byte.clone());
-        }
-        for byte in self.nonce.to_be_bytes() {
-            bytes.push(byte.clone());
-        }
-        bytes.push(self.target.clone());
-        for byte in self.timestamp.to_be_bytes() {
-            bytes.push(byte.clone());
-        }
+        let bytes: Vec<u8> = match bincode::serialize(self) {
+            Ok(value) => value,
+            Err(e) => {
+                println!("Error! Could not hash block");
+                vec![]
+            }
+        };
 
         let mut hasher = Sha256::new();
         hasher.update(bytes);
         let result = hasher.finalize();
-        let hex_result = hex::encode(result);
+        let hex_result: String = hex::encode(result);
 
         return hex_result;
     }

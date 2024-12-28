@@ -15,6 +15,7 @@ impl Block {
             txs: tx_merkle_tree,
         };
     }
+    
     pub fn mine_block(&mut self) {
         let target: &u8 = &self.block_header.target;
         let mut attempts: u128 = 0;

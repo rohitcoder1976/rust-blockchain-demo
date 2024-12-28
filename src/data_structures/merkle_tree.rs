@@ -1,5 +1,6 @@
 use sha2::{Sha256, Digest};
 use crate::Tx;
+use bincode;
 
 pub struct MerkleTree {
     pub merkle_root: String,
@@ -60,7 +61,7 @@ impl MerkleTree {
             for data_item in &data {
                 if i == data.len() - 1 { // if at the last data item
                     if prev_is_pair {
-                        let prev_data_item = data[i-1].clone();
+                        let prev_data_item: [u8; 32] = data[i-1].clone();
                         let mut hasher = Sha256::new();
                         hasher.update([&prev_data_item[..], &data_item[..]].concat());
                         let data_hash: [u8; 32] = hasher.finalize().into();
@@ -74,7 +75,7 @@ impl MerkleTree {
                     }
                 } else {  
                     if prev_is_pair {
-                        let prev_data_item = data[i-1].clone();
+                        let prev_data_item: [u8; 32] = data[i-1].clone();
                         let mut hasher = Sha256::new();
                         hasher.update([&prev_data_item[..], &data_item[..]].concat());
                         let data_hash: [u8; 32] = hasher.finalize().into();

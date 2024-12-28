@@ -4,7 +4,13 @@ use std::{array, vec};
 
 use crate::Tx;
 use crate::util::conversions::hex_string_to_bit_vector;
+use bincode;
+use serde::{Serialize, Deserialize};
+use serde_big_array::big_array;
 
+big_array! { BigArray; 256 }
+
+#[derive(Serialize, Deserialize)]
 pub struct KeyPair {
     pub priv_key: Key,
     pub pub_key: Key
@@ -55,7 +61,7 @@ impl KeyPair {
 
     pub fn create_signature(&self, tx: &Tx) -> [KeyBlock; 256]{
         // hash the message
-        let msg_hash_bits: Vec<u8> = hex_string_to_bit_vector(tx.get_tx_hash());
+        let msg_hash_bits: Vec<u8> = hex_string_to_bit_vector(tx.get_tx_id());
 
         let mut signature_priv_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
 
@@ -76,40 +82,31 @@ impl KeyPair {
 
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Key {
+    #[serde(with = "BigArray")]
     pub zero_blocks: [KeyBlock; 256],
+    #[serde(with = "BigArray")]
     pub one_blocks: [KeyBlock; 256],  
     pub is_private: bool,
 }
 
 impl Key {
     pub fn convert_key_to_bytes(&self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = vec![];
-        bytes.push(if self.is_private {1 as u8} else {0 as u8});
-        
-        for i in 0..256 {
-            let zero_block: &KeyBlock = &self.zero_blocks[i];
-            let one_block = &self.one_blocks[i];
-            
-            let zero_block_bytes: Vec<u8> = [zero_block.first_part.to_be_bytes(), zero_block.second_part.to_be_bytes()].concat();
-            let one_block_bytes = [one_block.first_part.to_be_bytes(), one_block.second_part.to_be_bytes()].concat();
-
-            for byte in zero_block_bytes {
-                bytes.push(byte);
+        let bytes: Vec<u8> = match bincode::serialize(self) {
+            Ok(val) => val,
+            Err(e) => {
+                println!("Error! Could not convert key to bytes");
+                vec![]
             }
-
-            for byte in one_block_bytes {
-                bytes.push(byte);
-            }
-        }
+        };
         
-        return bytes.clone();
+        return bytes;
     }
 }
 
 /* Each key block, in order to meet the 256 bits length requirement, must be two u128 integers stuck together, rather than a simple primitive type. */
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Copy)]
 pub struct KeyBlock {
     pub first_part: u128,
     pub second_part: u128,
@@ -121,12 +118,21 @@ impl KeyBlock {
         let mut hasher = Sha256::new();
         hasher.update(&block_bytes);
         let block_hashed = hasher.finalize();
-        let block_hashed_part1 = u128::from_be_bytes(block_hashed[0..16].try_into().expect("slice with incorrect length"));
+        let block_hashed_part1: u128 = u128::from_be_bytes(block_hashed[0..16].try_into().expect("slice with incorrect length"));
         let block_hashed_part2: u128 = u128::from_be_bytes(block_hashed[16..32].try_into().expect("slice with incorrect length"));
         return KeyBlock {
             first_part: block_hashed_part1,
             second_part: block_hashed_part2
         };
+    }
+}
+
+impl Default for KeyBlock {
+    fn default() -> Self {
+        Self {
+            first_part: 0,
+            second_part: 0
+        }
     }
 }
 

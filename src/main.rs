@@ -3,7 +3,6 @@ mod util;
 mod data_structures;
 
 use classes::block::block::Block;
-use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, KeyBlock, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
 use rand::Rng;

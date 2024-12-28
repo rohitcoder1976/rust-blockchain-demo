@@ -5,5 +5,9 @@ pub struct Blockchain {
 }
 
 impl Blockchain {
-
+    pub fn new(blocks: Vec<Block>) -> Blockchain {
+        return Blockchain {
+            blocks
+        };
+    }
 }
