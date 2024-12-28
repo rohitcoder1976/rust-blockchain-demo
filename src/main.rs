@@ -10,7 +10,6 @@ use rand::Rng;
 use sha2::{Sha256, Digest};
 
 fn main() {
-    let mut blockchain = Blockchain::new();
     let new_key_pair1: KeyPair = KeyPair::new();
     
     let mut tx_inputs: Vec<TxInput> = Vec::new();
@@ -25,14 +24,11 @@ fn main() {
     let signature: [KeyBlock; 256] = new_key_pair1.create_signature(&new_tx);
     new_tx.inputs[0].signature = signature;
 
-    println!("Transaction is verified: {}\n", new_tx.verify_signature(&new_key_pair1.pub_key));
+    println!("Transaction is verified: {}", new_tx.verify_signature(&new_key_pair1.pub_key));
     let mut tx_vec: Vec<Tx> = vec![];
     tx_vec.push(new_tx);
 
-    let mut new_block: Block = Block::new(&tx_vec);
-    new_block.mine_block();
-
-    blockchain.add_new_block(&new_block);
+    test_blockchain(tx_vec.clone());
 }
 
 #[warn(dead_code)]
@@ -49,4 +45,44 @@ fn generate_test_vec(range: usize) -> Vec<[u8; 32]>{
         vec.push(hash_result.clone());
     }
     return vec;
+}
+
+fn test_blockchain(tx_vec: Vec<Tx>){
+    let mut blockchain = Blockchain::new();
+    let mut block_1: Block = Block::new(&tx_vec, "".to_string());
+    block_1.mine_block();
+    blockchain.add_new_block(&block_1);
+
+    let mut block_2: Block = Block::new(&tx_vec, blockchain.blocks[0].block_header.hash_block());
+    block_2.mine_block();
+    blockchain.add_new_block(&block_2);
+
+    let mut block_3: Block = Block::new(&tx_vec, blockchain.blocks[0].block_header.hash_block());
+    block_3.mine_block();
+    blockchain.add_new_block(&block_3);
+
+    let mut block_4: Block = Block::new(&tx_vec, blockchain.blocks[2].block_header.hash_block());
+    block_4.mine_block();
+    blockchain.add_new_block(&block_4);
+
+    let mut block_5: Block = Block::new(&tx_vec, blockchain.blocks[1].block_header.hash_block());
+    block_5.mine_block();
+    blockchain.add_new_block(&block_5);
+
+    let mut block_6: Block = Block::new(&tx_vec, blockchain.blocks[3].block_header.hash_block());
+    block_6.mine_block();
+    blockchain.add_new_block(&block_6);
+
+    let mut block_7: Block = Block::new(&tx_vec, blockchain.blocks[2].block_header.hash_block());
+    block_7.mine_block();
+    blockchain.add_new_block(&block_7);
+
+    let mut block_8: Block = Block::new(&tx_vec, blockchain.blocks[6].block_header.hash_block());
+    block_8.mine_block();
+    blockchain.add_new_block(&block_8);
+
+    println!("\n--- Blockchain ---");
+    for block in &blockchain.blocks {
+        println!("Block hash: {}", block.block_header.hash_block());
+    }
 }

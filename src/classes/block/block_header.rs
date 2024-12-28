@@ -6,7 +6,7 @@ use bincode;
 
 #[derive(serde::Serialize, Clone)]
 pub struct BlockHeader {
-    prev_block_hash: String,
+    pub prev_block_hash: String,
     merkle_root: String,
     pub nonce: u128,
     pub target: u8,
@@ -21,7 +21,7 @@ impl BlockHeader {
             merkle_root,
             nonce: rng.gen(),
             // TODO: Target is an arbitrary number right now. develop a mechanism to dynamically change it based on network congestion
-            target: 4,
+            target: 3,
             timestamp: Utc::now().timestamp(),
         }
     }

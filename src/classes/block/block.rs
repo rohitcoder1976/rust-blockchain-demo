@@ -4,15 +4,15 @@ use crate::data_structures::merkle_tree::MerkleTree;
 
 #[derive(Clone)]
 pub struct Block {
-    block_header: BlockHeader,
+    pub block_header: BlockHeader,
     pub txs: MerkleTree,
 }
 
 impl Block {
-    pub fn new(txs: &Vec<Tx>) -> Block {
+    pub fn new(txs: &Vec<Tx>, prev_block_hash: String) -> Block {
         let tx_merkle_tree = MerkleTree::new(txs);
         return Block {
-            block_header: BlockHeader::new(tx_merkle_tree.merkle_root.clone(), String::new()),
+            block_header: BlockHeader::new(tx_merkle_tree.merkle_root.clone(), prev_block_hash),
             txs: tx_merkle_tree,
         };
     }
@@ -48,6 +48,6 @@ impl Block {
             attempts += 1;
         }
 
-        println!("--- Mined the block! ---\nNonce: {0}\nBlock hash: {1}\nAttempts: {2}", self.block_header.nonce, self.block_header.hash_block(), attempts);
+        println!("\n--- Mined the block! ---\nNonce: {0}\nBlock hash: {1}\nAttempts: {2}", self.block_header.nonce, self.block_header.hash_block(), attempts);
     }
 }

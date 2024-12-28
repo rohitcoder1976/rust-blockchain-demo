@@ -131,9 +131,9 @@ pub struct TxInput {
 impl TxInput {
     pub fn new(signature: [KeyBlock; 256], prev_tx_id: String, is_coinbase: bool) -> TxInput{
         return TxInput {
-            signature: signature,
-            prev_tx_id: prev_tx_id,
-            is_coinbase: is_coinbase,
+            signature,
+            prev_tx_id,
+            is_coinbase,
             // TODO: index is hardcoded for simplicity. add a simple mechanism to check which index to use later
             index: 0,
         };
