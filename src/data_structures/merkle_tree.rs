@@ -1,7 +1,7 @@
 use sha2::{Sha256, Digest};
 use crate::Tx;
-use bincode;
 
+#[derive(Clone)]
 pub struct MerkleTree {
     pub merkle_root: String,
     pub data: Vec<Vec<[u8; 32]>>,
@@ -95,7 +95,7 @@ impl MerkleTree {
         }
 
         // convert merkle root in byte form to hex form for the struct
-        let merkle_root_hex_string: String = merkle_data[merkle_data.len()-1][0].iter().map(|byte| format!("{:02x}", byte)).collect();
+        let merkle_root_hex_string: String = merkle_data[merkle_data.len()-1][0].iter().map(|byte: &u8| format!("{:02x}", byte)).collect();
         return MerkleTree {
             merkle_root: merkle_root_hex_string,
             data: merkle_data.clone(),

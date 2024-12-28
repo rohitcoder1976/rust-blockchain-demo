@@ -34,7 +34,22 @@ impl Tx {
         return bytes;
     }
 
-    pub fn get_tx_id(&self) -> String{
+    pub fn get_tx_id(&self) -> String {
+        let bytes: Vec<u8> = match bincode::serialize(self) {
+            Ok(val) => val,
+            Err(e) => {
+                println!("Error! Could not convert transaction to bytes.");
+                vec![]
+            }
+        };
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        let result = hasher.finalize();
+        let hex_result = hex::encode(result);
+        return hex_result;
+    }
+
+    pub fn get_tx_hash(&self) -> String{
         let mut hasher = Sha256::new();
         
         for input in &self.inputs {
@@ -68,7 +83,7 @@ impl Tx {
     }
 
     pub fn verify_signature(&self, pub_key: &Key) -> bool {
-        let tx_hash_bits: Vec<u8> = hex_string_to_bit_vector(self.get_tx_id());
+        let tx_hash_bits: Vec<u8> = hex_string_to_bit_vector(self.get_tx_hash());
         let mut verified: bool = true;
 
         for input in &self.inputs {
@@ -109,6 +124,7 @@ pub struct TxInput {
     #[serde(with = "BigArray")]
     pub signature: [KeyBlock; 256],
     pub prev_tx_id: String,
+    pub index: usize,
     pub is_coinbase: bool,
 }
 
@@ -117,7 +133,9 @@ impl TxInput {
         return TxInput {
             signature: signature,
             prev_tx_id: prev_tx_id,
-            is_coinbase: is_coinbase
+            is_coinbase: is_coinbase,
+            // TODO: index is hardcoded for simplicity. add a simple mechanism to check which index to use later
+            index: 0,
         };
     }
 }

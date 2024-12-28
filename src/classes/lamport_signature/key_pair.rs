@@ -61,7 +61,7 @@ impl KeyPair {
 
     pub fn create_signature(&self, tx: &Tx) -> [KeyBlock; 256]{
         // hash the message
-        let msg_hash_bits: Vec<u8> = hex_string_to_bit_vector(tx.get_tx_id());
+        let msg_hash_bits: Vec<u8> = hex_string_to_bit_vector(tx.get_tx_hash());
 
         let mut signature_priv_blocks: [KeyBlock; 256] = initialize_empty_key_blocks();
 
@@ -127,6 +127,7 @@ impl KeyBlock {
     }
 }
 
+// necessary for serde deserialize and serialize derivations
 impl Default for KeyBlock {
     fn default() -> Self {
         Self {

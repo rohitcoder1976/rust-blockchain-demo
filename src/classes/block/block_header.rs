@@ -4,8 +4,9 @@ use hex;
 use chrono::Utc; 
 use bincode;
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 pub struct BlockHeader {
+    prev_block_hash: String,
     merkle_root: String,
     pub nonce: u128,
     pub target: u8,
@@ -13,9 +14,10 @@ pub struct BlockHeader {
 }
 
 impl BlockHeader {
-    pub fn new(merkle_root: String) -> BlockHeader {
+    pub fn new(merkle_root: String, prev_block_hash: String) -> BlockHeader {
         let mut rng: rand::prelude::ThreadRng = rand::thread_rng();
         return BlockHeader {
+            prev_block_hash,
             merkle_root,
             nonce: rng.gen(),
             // TODO: Target is an arbitrary number right now. develop a mechanism to dynamically change it based on network congestion

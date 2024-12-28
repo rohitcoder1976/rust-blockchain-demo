@@ -2,22 +2,23 @@ use crate::classes::block::block_header:: BlockHeader;
 use crate::classes::transaction::tx::Tx;
 use crate::data_structures::merkle_tree::MerkleTree;
 
+#[derive(Clone)]
 pub struct Block {
     block_header: BlockHeader,
-    txs: MerkleTree,
+    pub txs: MerkleTree,
 }
 
 impl Block {
     pub fn new(txs: &Vec<Tx>) -> Block {
         let tx_merkle_tree = MerkleTree::new(txs);
         return Block {
-            block_header: BlockHeader::new(tx_merkle_tree.merkle_root.clone()),
+            block_header: BlockHeader::new(tx_merkle_tree.merkle_root.clone(), String::new()),
             txs: tx_merkle_tree,
         };
     }
     
     pub fn mine_block(&mut self) {
-        let target: &u8 = &self.block_header.target;
+        let target: u8 = self.block_header.target;
         let mut attempts: u128 = 0;
         loop {
             let mut leading_zeros: u8 = 0;
@@ -33,7 +34,7 @@ impl Block {
             }
 
             // if so, break from the loop and announce the answer (TODO: add a block propagation to announce to other nodes)
-            if leading_zeros >= *target {
+            if leading_zeros >= target {
                 break;
             }
 

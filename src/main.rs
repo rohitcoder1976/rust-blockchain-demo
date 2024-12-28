@@ -3,12 +3,14 @@ mod util;
 mod data_structures;
 
 use classes::block::block::Block;
+use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, KeyBlock, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
 use rand::Rng;
 use sha2::{Sha256, Digest};
 
 fn main() {
+    let mut blockchain = Blockchain::new();
     let new_key_pair1: KeyPair = KeyPair::new();
     
     let mut tx_inputs: Vec<TxInput> = Vec::new();
@@ -29,6 +31,8 @@ fn main() {
 
     let mut new_block: Block = Block::new(&tx_vec);
     new_block.mine_block();
+
+    blockchain.add_new_block(&new_block);
 }
 
 #[warn(dead_code)]
