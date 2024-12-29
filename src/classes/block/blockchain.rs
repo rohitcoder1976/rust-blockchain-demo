@@ -1,9 +1,6 @@
 use std::{collections::HashMap, vec};
-
 use serde::{Deserialize, Serialize};
-
 use crate::{classes::{block::block::Block, transaction::tx::Tx}, util::disk::{load_branches_from_file, save_chain_branches_to_file}};
-use std::fs::File;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Blockchain {
@@ -38,7 +35,6 @@ impl Blockchain {
             }
         }
 
-
         // if not in the valid chain, check in the chains stored in disk
         if !found_prev_block {
             println!("Could not find previous block. Previous block hash: {}", prev_block_hash);
@@ -69,68 +65,21 @@ impl Blockchain {
                 println!("New block does not point to any existing block...");
                 return;
             }
+        }
 
-            let block_verified: bool = true;
-            let mut checked_block_hashes: HashMap<String, bool> = HashMap::new();
+        let block_verified: bool = true;
 
-            for block_in_chain in &self.blocks {
-                checked_block_hashes.insert(block_in_chain.block_header.hash_block(), true);
-            }
-
-            /* if the new block is verified within a disk stored branch, then push all of the blocks in all chains, except for the last one in the branch
+        /* if the new block is verified within a disk stored branch, then push all of the blocks in all chains, except for the last one in the branch
             that the new block exists in, of the branch to the valid chain manually. then call add_new_block to add the last block, while also computing the branches within the chain and picking the new valid chain */ 
-            if block_verified {
-                for branch_chain in &loaded_branch_chains {
-                    for block_in_branch_chain in &branch_chain.blocks {
-                        if checked_block_hashes.contains_key(&block_in_branch_chain.block_header.hash_block()) {
-                            continue;
-                        } else {
-                            checked_block_hashes.insert(block_in_branch_chain.block_header.hash_block(), true);
-                            self.blocks.push(block_in_branch_chain.clone());
-                        }
-                    }
-                }
-                self.blocks.push(block.clone());
-                self.add_new_block();
-            }
-
-        } else {
-            let block_verified: bool = true;
-
-            let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
-            let loaded_branch_chains: Vec<Blockchain> = match loaded_branch_chains_result {
-                Ok(val) => val,
-                Err(()) => vec![],
-            };
-
-            if loaded_branch_chains.len() == 0 {
-                self.blocks.push(block.clone());
-                self.add_new_block();
-                return;
-            }
-            if block_verified {
-                let mut checked_block_hashes: HashMap<String, bool> = HashMap::new();
-                for block_in_chain in &self.blocks {
-                    checked_block_hashes.insert(block_in_chain.block_header.hash_block(), true);
-                }
-                for branch_chain in &loaded_branch_chains {
-                    for block_in_branch_chain in &branch_chain.blocks {
-                        if checked_block_hashes.contains_key(&block_in_branch_chain.block_header.hash_block()) {
-                            continue;
-                        } else {
-                            checked_block_hashes.insert(block_in_branch_chain.block_header.hash_block(), true);
-                            self.blocks.push(block_in_branch_chain.clone());
-                        }
-                    }
-                }
-                self.blocks.push(block.clone());
-                self.add_new_block();
-            }
+        if block_verified {
+            self.insert_disk_blocks();
+            self.blocks.push(block.clone());
+            self.choose_valid_chain_and_update_utxo();
         }
 
     }
 
-    pub fn add_new_block(&mut self) {
+    pub fn choose_valid_chain_and_update_utxo(&mut self) {
         // self.blocks.push(block.clone());
 
         let mut branches_block_hashes: Vec<Vec<String>> = vec![];
@@ -226,11 +175,6 @@ impl Blockchain {
         self.update_utxo();
     }
 
-    // TODO: verify block mechanism
-    pub fn verify_block(block: &Block) -> bool {
-        return true;
-    }
-
     fn update_utxo(&mut self){
 
         self.utxo = vec![];
@@ -273,5 +217,32 @@ impl Blockchain {
         }
 
         // println!("UTXO Len: {}", self.utxo.len());
+    }
+
+    fn insert_disk_blocks(&mut self) {
+        let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
+        let loaded_branch_chains: Vec<Blockchain> = match loaded_branch_chains_result {
+            Ok(val) => val,
+            Err(()) => vec![],
+        };
+
+        if loaded_branch_chains.len() == 0 {
+            return;
+        }
+
+        let mut checked_block_hashes: HashMap<String, bool> = HashMap::new();
+        for block_in_chain in &self.blocks {
+            checked_block_hashes.insert(block_in_chain.block_header.hash_block(), true);
+        }
+        for branch_chain in &loaded_branch_chains {
+            for block_in_branch_chain in &branch_chain.blocks {
+                if checked_block_hashes.contains_key(&block_in_branch_chain.block_header.hash_block()) {
+                    continue;
+                } else {
+                    checked_block_hashes.insert(block_in_branch_chain.block_header.hash_block(), true);
+                    self.blocks.push(block_in_branch_chain.clone());
+                }
+            }
+        }
     }
 }
