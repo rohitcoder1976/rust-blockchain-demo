@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use crate::classes::block::block_header:: BlockHeader;
 use crate::classes::transaction::tx::Tx;
 use crate::data_structures::merkle_tree::MerkleTree;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Block {
     pub block_header: BlockHeader,
     pub txs: MerkleTree,

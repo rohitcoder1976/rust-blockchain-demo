@@ -1,7 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
 
-use crate::classes::{block::block::Block, transaction::tx::Tx};
+use serde::{Deserialize, Serialize};
 
+use crate::{classes::{block::block::Block, transaction::tx::Tx}, util::disk::{load_branches_from_file, save_chain_branches_to_file}};
+use std::fs::File;
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Blockchain {
     pub blocks: Vec<Block>,
     last_checked_height: u128,
@@ -17,8 +21,117 @@ impl Blockchain {
         };
     }
 
-    pub fn add_new_block(&mut self, block: &Block) {
-        self.blocks.push(block.clone());
+    pub fn accept_new_block(&mut self, block: &Block) {
+        let prev_block_hash = &block.block_header.prev_block_hash;
+
+        if self.blocks.len() == 0 { // if genesis block
+            self.blocks.push(block.clone());
+            return;
+        }
+
+        let mut found_prev_block: bool = false;
+
+        // try to find the new block in the valid chain
+        for block_in_chain in &self.blocks {
+            if &block_in_chain.block_header.hash_block() == prev_block_hash {
+                found_prev_block = true;
+            }
+        }
+
+
+        // if not in the valid chain, check in the chains stored in disk
+        if !found_prev_block {
+            println!("Could not find previous block. Previous block hash: {}", prev_block_hash);
+            let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
+            let mut loaded_branch_chains: Vec<Blockchain> = match loaded_branch_chains_result {
+                Ok(val) => val,
+                Err(()) => vec![],
+            };
+
+            if loaded_branch_chains.len() == 0 {
+                println!("Could not load branch chains from disk...");
+                return;
+            }
+
+            let mut branch_index: usize = 0;
+            for branch_chain in loaded_branch_chains.clone() {
+                for block_in_branch in &branch_chain.blocks {
+                    if &block_in_branch.block_header.hash_block() == prev_block_hash {
+                        found_prev_block = true;
+                        loaded_branch_chains[branch_index].blocks.push(block_in_branch.clone());
+                    }
+                }
+                branch_index += 1;
+            }
+
+            // if still not found, the block is invalid as it doesn't point to anything
+            if !found_prev_block {
+                println!("New block does not point to any existing block...");
+                return;
+            }
+
+            let block_verified: bool = true;
+            let mut checked_block_hashes: HashMap<String, bool> = HashMap::new();
+
+            for block_in_chain in &self.blocks {
+                checked_block_hashes.insert(block_in_chain.block_header.hash_block(), true);
+            }
+
+            /* if the new block is verified within a disk stored branch, then push all of the blocks in all chains, except for the last one in the branch
+            that the new block exists in, of the branch to the valid chain manually. then call add_new_block to add the last block, while also computing the branches within the chain and picking the new valid chain */ 
+            if block_verified {
+                for branch_chain in &loaded_branch_chains {
+                    for block_in_branch_chain in &branch_chain.blocks {
+                        if checked_block_hashes.contains_key(&block_in_branch_chain.block_header.hash_block()) {
+                            continue;
+                        } else {
+                            checked_block_hashes.insert(block_in_branch_chain.block_header.hash_block(), true);
+                            self.blocks.push(block_in_branch_chain.clone());
+                        }
+                    }
+                }
+                self.blocks.push(block.clone());
+                self.add_new_block();
+            }
+
+        } else {
+            let block_verified: bool = true;
+
+            let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
+            let loaded_branch_chains: Vec<Blockchain> = match loaded_branch_chains_result {
+                Ok(val) => val,
+                Err(()) => vec![],
+            };
+
+            if loaded_branch_chains.len() == 0 {
+                self.blocks.push(block.clone());
+                self.add_new_block();
+                return;
+            }
+            if block_verified {
+                let mut checked_block_hashes: HashMap<String, bool> = HashMap::new();
+                for block_in_chain in &self.blocks {
+                    checked_block_hashes.insert(block_in_chain.block_header.hash_block(), true);
+                }
+                for branch_chain in &loaded_branch_chains {
+                    for block_in_branch_chain in &branch_chain.blocks {
+                        if checked_block_hashes.contains_key(&block_in_branch_chain.block_header.hash_block()) {
+                            continue;
+                        } else {
+                            checked_block_hashes.insert(block_in_branch_chain.block_header.hash_block(), true);
+                            self.blocks.push(block_in_branch_chain.clone());
+                        }
+                    }
+                }
+                self.blocks.push(block.clone());
+                self.add_new_block();
+            }
+        }
+
+    }
+
+    pub fn add_new_block(&mut self) {
+        // self.blocks.push(block.clone());
 
         let mut branches_block_hashes: Vec<Vec<String>> = vec![];
         
@@ -73,10 +186,38 @@ impl Blockchain {
                 i += 1;
             }
 
-            println!("Biggest Branch In Blockchain:");
-            for branch_block_hash in &branches_block_hashes[biggest_branch_block_hashes_index] {
-                println!("Block hash: {}", branch_block_hash);
+            let mut branches: Vec<Blockchain> = vec![];
+            for branch_block_hashes in &branches_block_hashes {
+                let mut branch: Blockchain = Blockchain::new();
+                for branch_block_hash in branch_block_hashes {
+                    for block in &self.blocks {
+                        if branch_block_hash == &block.block_header.hash_block() {
+                            branch.blocks.push(block.clone());
+                        }
+                    }
+                }
+                branches.push(branch);
             }
+
+            
+            println!("--- ALLLLL Branches ---");
+            let mut branch_index4: usize = 0; 
+            for branch in &branches {
+                println!("Branch {}: ", branch_index4+1);
+                for branch_block in &branch.blocks {
+                    println!("Block HASH: {}", branch_block.block_header.hash_block());
+                }
+                branch_index4 += 1;
+            }
+
+            match save_chain_branches_to_file(&branches) {
+                Ok(()) => {
+                    println!("Saved branches to disk...");
+                },
+                Err(()) => {}
+            };
+
+            self.blocks = branches[biggest_branch_block_hashes_index].blocks.clone();
 
         } else {
             println!("LOG: No branches in blockchain");
@@ -85,45 +226,52 @@ impl Blockchain {
         self.update_utxo();
     }
 
+    // TODO: verify block mechanism
+    pub fn verify_block(block: &Block) -> bool {
+        return true;
+    }
+
     fn update_utxo(&mut self){
-        let new_block_txs: &Vec<Tx> = &self.blocks[self.blocks.len() - 1].txs.base;
 
-        // go through each transaction in the new block
-        for new_tx in new_block_txs {
-            // if no previous transaction to point to (coinbase transaction)
-            if new_tx.inputs[0].is_coinbase { 
-                self.utxo.push(new_tx.clone());
-                continue;
-            }
+        self.utxo = vec![];
 
-            // iterate through each input for every transaction in the block
-            for new_tx_input in &new_tx.inputs {
-                let prev_tx_id: String = new_tx_input.prev_tx_id.clone();
-                let prev_tx_index: usize = new_tx_input.index;
+        for block in &self.blocks {
+            // go through each transaction in the new block
+            for tx in &block.txs.base {
+                // if no previous transaction to point to (coinbase transaction)
+                if tx.inputs[0].is_coinbase { 
+                    self.utxo.push(tx.clone());
+                    continue;
+                }
 
-                let mut k: usize = 0; 
-                // iterate through the utxo to find the prev_tx_id that the new transaction input points to
-                for utxo_tx_index in 0..self.utxo.len() {
-                    let utxo_tx_id: String = self.utxo[utxo_tx_index].get_tx_id();
-                    if prev_tx_id == utxo_tx_id { // if found the match, remove the output from the consumed utxo transaction
-                        self.utxo[utxo_tx_index].outputs.remove(prev_tx_index);
+                // iterate through each input for every transaction in the block
+                for new_tx_input in &tx.inputs {
+                    let prev_tx_id: String = new_tx_input.prev_tx_id.clone();
+                    let prev_tx_index: usize = new_tx_input.index;
 
-                        // if there are no outputs left in the consumed utxo transaction, delete the utxo transaction
-                        if self.utxo[utxo_tx_index].outputs.len() == 0 {
-                            self.utxo.remove(k);
+                    let mut k: usize = 0; 
+                    // iterate through the utxo to find the prev_tx_id that the new transaction input points to
+                    for utxo_tx_index in 0..self.utxo.len() {
+                        let utxo_tx_id: String = self.utxo[utxo_tx_index].get_tx_id();
+                        if prev_tx_id == utxo_tx_id { // if found the match, remove the output from the consumed utxo transaction
+                            self.utxo[utxo_tx_index].outputs.remove(prev_tx_index);
+
+                            // if there are no outputs left in the consumed utxo transaction, delete the utxo transaction
+                            if self.utxo[utxo_tx_index].outputs.len() == 0 {
+                                self.utxo.remove(k);
+                            }
+                        } else {
+                            print!("Error! Not found a matching input for a new transaction.");
+                            return;
                         }
-                    } else {
-                        print!("Error! Not found a matching input for a new transaction.");
-                        return;
-                    }
-                    k += 1;
-                }   
-            }
+                        k += 1;
+                    }   
+                }
 
-            self.utxo.push(new_tx.clone());
+                self.utxo.push(tx.clone());
+            }
         }
 
-        println!("UTXO Len: {}", self.utxo.len());
-        self.last_checked_height = self.blocks.len() as u128;
+        // println!("UTXO Len: {}", self.utxo.len());
     }
 }

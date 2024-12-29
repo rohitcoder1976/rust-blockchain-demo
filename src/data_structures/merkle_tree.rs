@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use crate::Tx;
 
-#[derive(Clone)]
+#[derive(Clone ,Serialize, Deserialize)]
 pub struct MerkleTree {
     pub merkle_root: String,
     pub data: Vec<Vec<[u8; 32]>>,

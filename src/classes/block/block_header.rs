@@ -1,10 +1,11 @@
 use rand::Rng;
+use serde::Deserialize;
 use sha2::{Sha256, Digest};
 use hex;
 use chrono::Utc; 
 use bincode;
 
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Deserialize, Clone)]
 pub struct BlockHeader {
     pub prev_block_hash: String,
     merkle_root: String,
