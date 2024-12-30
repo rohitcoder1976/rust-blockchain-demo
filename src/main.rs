@@ -2,65 +2,184 @@ mod classes;
 mod util;
 mod data_structures;
 
+use std::io;
+
+use chrono::{NaiveDateTime, TimeZone, Utc};
 use classes::block::block::Block;
 use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, KeyBlock, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
+
 use rand::Rng;
 use sha2::{Sha256, Digest};
-use util::disk::load_branches_from_file;
+use util::disk::{load_branches_from_file, load_keypairs_from_file};
 
 fn main() {
-    let new_key_pair1: KeyPair = KeyPair::new();
+
+    let keypairs_result: Result<Vec<KeyPair>, ()> = load_keypairs_from_file();
+    let keypairs: Vec<KeyPair> = match keypairs_result {
+        Ok(val) => {
+            println!("Imported Key Pairs...");
+            val
+        },
+        Err(e) => {
+            panic!("Failed to import key pairs...");
+        } 
+    };
+
+    let blockchain_loaded_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
+    let blockchains: Vec<Blockchain> = match blockchain_loaded_result {
+        Ok(val) => val,
+        Err(()) => {
+            panic!("Could not load initial blockchain...");
+        }
+    };
+
+    let mut biggest_chain_height: usize = 0;
+    let mut biggest_chain_index: usize = 0;
+    for chain_index in 0..blockchains.len() {
+        if blockchains[chain_index].blocks.len() > biggest_chain_height {
+            biggest_chain_height = blockchains[chain_index].blocks.len();
+            biggest_chain_index = chain_index;
+        }
+    }
+
+    let mut blockchain: Blockchain = blockchains[biggest_chain_index].clone();
+    blockchain.update_utxo(); 
+
+    loop {
+        let mut choice: String = String::new();
+        println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
+        io::stdin().read_line(&mut choice);
+        choice = choice.trim().to_string();
     
-    let mut tx_inputs: Vec<TxInput> = Vec::new();
-    let prev_tx_id = String::new();
-    tx_inputs.push(TxInput::new(initialize_empty_key_blocks(), prev_tx_id, true));
+        if choice == "1".to_string() {
+            get_blockchain(&blockchain);
+        } else if choice == "2".to_string() {
+            compute_balance(&blockchain, &keypairs);
+        } else if choice == "3".to_string() {
+            send_money(&mut blockchain, &keypairs);
+        } else if choice == "4".to_string() {
+            get_utxo(&blockchain);
+        } else if choice == "Q".to_string() || choice == "q".to_string() {
+            break;
+        }
+    }
+ 
 
-    let mut tx_outputs: Vec<TxOutput> = Vec::new();
-    tx_outputs.push(TxOutput::new(new_key_pair1.pub_key.clone(), 100));
+    // let mut tx_inputs: Vec<TxInput> = Vec::new();
+    // let prev_tx_id = String::new();
+    // tx_inputs.push(TxInput::new(initialize_empty_key_blocks(), prev_tx_id, true));
 
-    let mut new_tx = Tx::new(tx_inputs, tx_outputs);
+    // let mut tx_outputs: Vec<TxOutput> = Vec::new();
+    // tx_outputs.push(TxOutput::new(new_key_pair1.pub_key.clone(), 100));
 
-    let signature: [KeyBlock; 256] = new_key_pair1.create_signature(&new_tx);
-    new_tx.inputs[0].signature = signature;
+    // let mut new_tx = Tx::new(tx_inputs, tx_outputs);
 
-    println!("Transaction is verified: {}", new_tx.verify_signature(&new_key_pair1.pub_key));
-    let mut tx_vec: Vec<Tx> = vec![];
-    tx_vec.push(new_tx);
+    // let signature: [KeyBlock; 256] = new_key_pair1.create_signature(&new_tx);
+    // new_tx.inputs[0].signature = signature;
 
-    test_blockchain(tx_vec.clone());
+    // println!("Transaction is verified: {}", new_tx.verify_signature(&new_key_pair1.pub_key));
+    // let mut tx_vec: Vec<Tx> = vec![];
+    // tx_vec.push(new_tx);
+}
 
-    // let blockchains_loaded_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
-    // let blockchains_loaded = match blockchains_loaded_result {
-    //     Ok(val) => val,
-    //     Err(()) => {
-    //         vec![]
-    //     }
-    // };
-    // let mut i:usize= 0; 
-    // for blockchain_loaded in &blockchains_loaded {
-    //     println!("Blockchain {0} height: {1}", i+1, blockchain_loaded.blocks.len());
-    //     i += 1;
-    // }
+fn compute_balance(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
+    let utxo: &Vec<Tx> = &blockchain.utxo;
+    let mut account_index_str: String = String::new();
+    println!("\nAccount Index: ");
+    io::stdin().read_line(&mut account_index_str);
+    let account_index: usize = account_index_str.trim().parse().unwrap();
+    let mut computed_balance: u64 = 0;
+
+    let keypair: &KeyPair = &keypairs[account_index];
+    for tx in utxo {
+        for tx_output in &tx.outputs {
+            if tx_output.pub_key.hash_key() == keypair.pub_key.hash_key() {
+                computed_balance += tx_output.amount.clone();
+            }
+        }
+    }
+
+    println!("Balance: {}\n", computed_balance);
+}
+
+fn get_blockchain(blockchain: &Blockchain) {
+    let mut block_height: usize = 0;
+    println!("");
+    for block_in_chain in &blockchain.blocks {
+        println!("-Block Height: {}-", block_height);
+        println!("Block hash: {}", block_in_chain.block_header.hash_block());
+        println!("TX Length: {}", block_in_chain.txs.base.len());
+        let naive_datetime = NaiveDateTime::from_timestamp(block_in_chain.block_header.timestamp.clone(), 0);
+        println!("Timestamp: {}", Utc.from_utc_datetime(&naive_datetime).to_rfc3339());
+        println!("");
+        block_height += 1;
+    }
+}
+
+fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
+    let utxo: &Vec<Tx> = &blockchain.utxo;
+    let mut sender_account_index_str: String = String::new();
+    let mut recipient_account_index_str: String = String::new();
+    let mut amount_str: String = String::new();
+
+    println!("\nSender Account Index: ");
+    io::stdin().read_line(&mut sender_account_index_str);
+    println!("\nRecipient Account Index: ");
+    io::stdin().read_line(&mut recipient_account_index_str);
+    println!("\nAmount of Money: ");
+    io::stdin().read_line(&mut amount_str);
+
+    let sender_account_index: usize = sender_account_index_str.trim().parse().unwrap();
+    let recipient_account_index: usize = sender_account_index_str.trim().parse().unwrap();
+    let amount: u64 = amount_str.trim().parse().unwrap();
+
+    let mut possible_tx_inputs: Vec<TxInput> = vec![];
+    let mut possible_amount: u64 = 0;
+
+    let keypair: &KeyPair = &keypairs[sender_account_index];
+
+    for tx in utxo {
+        let mut output_index: usize = 0; 
+        for tx_output in &tx.outputs {
+            if tx_output.pub_key.hash_key() == keypair.pub_key.hash_key() {
+                possible_tx_inputs.push(TxInput::new(initialize_empty_key_blocks(), tx.get_tx_id(), false, output_index));
+                possible_amount += tx_output.amount.clone();
+            }
+            output_index += 1;
+        }
+
+        if possible_amount >= amount {
+            break;
+        }
+    }
+
+    let recipient_pubkey = keypairs[recipient_account_index].pub_key.clone();
+    let tx_output: TxOutput = TxOutput::new(recipient_pubkey, amount);
+    let mut tx_outputs: Vec<TxOutput> = vec![tx_output];
+
+    if possible_amount > amount {
+        let self_tx_output: TxOutput = TxOutput::new(keypair.pub_key.clone(), possible_amount-amount);
+        tx_outputs.push(self_tx_output);
+    }
+
+    let mut transaction = Tx::new(possible_tx_inputs, tx_outputs);
+    for tx_input_index in 0..transaction.inputs.len() {
+        transaction.inputs[tx_input_index].signature = keypair.create_signature(&transaction);
+    }
+
+    let mut block: Block = Block::new(&vec![transaction], blockchain.blocks[blockchain.blocks.len()-1].block_header.hash_block());
+    block.mine_block();
+    blockchain.accept_new_block(&block);
+
+}
+
+fn get_utxo(blockchain: &Blockchain) {
+    println!("UTXO Length: {}", blockchain.utxo.len());
 }
 
 #[warn(dead_code)]
-fn generate_test_vec(range: usize) -> Vec<[u8; 32]>{
-    let mut vec: Vec<[u8; 32]> = Vec::new();
-    for i in 0..range {
-        let mut hasher = Sha256::new();
-        let mut rng = rand::thread_rng();
-        let random_num: u32 = rng.gen_range(1..1000);
-
-        let random_num_bytes: [u8; 4] = random_num.to_be_bytes();
-        hasher.update(random_num_bytes);
-        let hash_result: [u8; 32] = hasher.finalize().into();
-        vec.push(hash_result.clone());
-    }
-    return vec;
-}
-
 fn test_blockchain(tx_vec: Vec<Tx>){
     let mut blockchain = Blockchain::new();
     let mut block_1: Block = Block::new(&tx_vec, "".to_string());

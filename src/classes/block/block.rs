@@ -18,10 +18,6 @@ impl Block {
             txs: tx_merkle_tree,
         };
     }
-
-    pub fn verify_block(&self) -> bool {
-        return true;
-    }
     
     pub fn mine_block(&mut self) {
         let target: u8 = self.block_header.target;

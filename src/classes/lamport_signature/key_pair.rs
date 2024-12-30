@@ -10,7 +10,7 @@ use serde_big_array::big_array;
 
 big_array! { BigArray; 256 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct KeyPair {
     pub priv_key: Key,
     pub pub_key: Key
@@ -102,6 +102,22 @@ impl Key {
         };
         
         return bytes;
+    }
+
+    pub fn hash_key(&self) -> String {
+        let bytes: Vec<u8> = match bincode::serialize(self) {
+            Ok(val) => val,
+            Err(e) => {
+                println!("Error! Could not convert key to bytes");
+                vec![]
+            }
+        };
+
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        let result = hasher.finalize();
+        let hex_string: String = hex::encode(result);
+        hex_string
     }
 }
 

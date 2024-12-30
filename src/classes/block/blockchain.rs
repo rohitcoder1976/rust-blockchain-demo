@@ -23,6 +23,12 @@ impl Blockchain {
 
         if self.blocks.len() == 0 { // if genesis block
             self.blocks.push(block.clone());
+            match save_chain_branches_to_file(&vec![self.clone()]) {
+                Ok(()) => {
+                    println!("Saved branches to disk...");
+                },
+                Err(()) => {}
+            };
             return;
         }
 
@@ -37,7 +43,6 @@ impl Blockchain {
 
         // if not in the valid chain, check in the chains stored in disk
         if !found_prev_block {
-            println!("Could not find previous block. Previous block hash: {}", prev_block_hash);
             let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
             let mut loaded_branch_chains: Vec<Blockchain> = match loaded_branch_chains_result {
                 Ok(val) => val,
@@ -80,8 +85,6 @@ impl Blockchain {
     }
 
     pub fn choose_valid_chain_and_update_utxo(&mut self) {
-        // self.blocks.push(block.clone());
-
         let mut branches_block_hashes: Vec<Vec<String>> = vec![];
         
         let reversed_blocks: &Vec<Block> = &self.blocks.iter().rev().cloned().collect();
@@ -119,10 +122,10 @@ impl Blockchain {
             branches_block_hashes.push(branch_block_hashes);
         }
 
-        println!(">> DEBUG:");
+        // println!(">> DEBUG:");
 
         if branches_block_hashes.len() > 1 {
-            println!("LOG: Uh oh! Branch!! Number of branches: {}", branches_block_hashes.len());
+            // println!("LOG: Uh oh! Branch!! Number of branches: {}", branches_block_hashes.len());
             let mut i: usize = 0;
             let mut biggest_branch_block_hashes_index: usize = 0;
             let mut biggest_branch_block_hashes_num: usize = 0;
@@ -148,17 +151,6 @@ impl Blockchain {
                 branches.push(branch);
             }
 
-            
-            println!("--- ALLLLL Branches ---");
-            let mut branch_index4: usize = 0; 
-            for branch in &branches {
-                println!("Branch {}: ", branch_index4+1);
-                for branch_block in &branch.blocks {
-                    println!("Block HASH: {}", branch_block.block_header.hash_block());
-                }
-                branch_index4 += 1;
-            }
-
             match save_chain_branches_to_file(&branches) {
                 Ok(()) => {
                     println!("Saved branches to disk...");
@@ -167,16 +159,19 @@ impl Blockchain {
             };
 
             self.blocks = branches[biggest_branch_block_hashes_index].blocks.clone();
-
         } else {
-            println!("LOG: No branches in blockchain");
+            match save_chain_branches_to_file(&vec![self.clone()]) {
+                Ok(()) => {
+                    println!("Saved branches to disk...");
+                },
+                Err(()) => {}
+            };
         }
 
         self.update_utxo();
     }
 
-    fn update_utxo(&mut self){
-
+    pub fn update_utxo(&mut self){
         self.utxo = vec![];
 
         for block in &self.blocks {

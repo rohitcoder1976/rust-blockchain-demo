@@ -2,7 +2,7 @@ use std::{fs::File, io::{self, Read, Write}};
 
 use bincode::de;
 
-use crate::classes::block::blockchain::Blockchain;
+use crate::classes::{block::blockchain::Blockchain, lamport_signature::key_pair::KeyPair};
 
 pub fn save_chain_branches_to_file(chains: &Vec<Blockchain>) -> Result<(), ()> {
     let mut file_result = File::create("branches.bin");
@@ -46,6 +46,41 @@ pub fn load_branches_from_file() -> Result<Vec<Blockchain>, ()> {
         Ok(val) => val,
         Err(e) => {
             println!("Failed to decode chain branches saved to disk...");
+            vec![]
+        }
+    };
+
+    if decoded.len() == 0 {
+        return Err(());
+    }
+
+    Ok(decoded)
+}
+
+pub fn load_keypairs_from_file() -> Result<Vec<KeyPair>, ()> {
+    let file_result: Result<File, io::Error> = File::open("keypairs.bin");
+    let mut file = match file_result {
+        Ok(val) => val,
+        Err(err) => {
+            // println!("Failed to read chain branches file...");
+            return Err(())
+        }
+    } ;
+
+    let mut encoded= Vec::new();
+    let file_read_result: Result<usize, io::Error> = file.read_to_end(&mut encoded);
+    match file_read_result {
+        Ok(val) => {},
+        Err(e) => {
+            println!("Could not load key pairs...");
+        }
+    };
+
+    let decoded_result: Result<Vec<KeyPair>, Box<bincode::ErrorKind>> = bincode::deserialize(&encoded);
+    let decoded: Vec<KeyPair> = match decoded_result {
+        Ok(val) => val,
+        Err(e) => {
+            println!("Failed to decode key pairs saved to disk...");
             vec![]
         }
     };
