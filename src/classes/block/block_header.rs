@@ -8,7 +8,7 @@ use bincode;
 #[derive(serde::Serialize, Deserialize, Clone)]
 pub struct BlockHeader {
     pub prev_block_hash: String,
-    merkle_root: String,
+    pub merkle_root: String,
     pub nonce: u128,
     pub target: u8,
     pub timestamp: i64,

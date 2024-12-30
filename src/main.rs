@@ -31,21 +31,27 @@ fn main() {
     let blockchains: Vec<Blockchain> = match blockchain_loaded_result {
         Ok(val) => val,
         Err(()) => {
-            panic!("Could not load initial blockchain...");
+            println!("Could not load initial blockchain...");
+            vec![]
         }
     };
 
-    let mut biggest_chain_height: usize = 0;
-    let mut biggest_chain_index: usize = 0;
-    for chain_index in 0..blockchains.len() {
-        if blockchains[chain_index].blocks.len() > biggest_chain_height {
-            biggest_chain_height = blockchains[chain_index].blocks.len();
-            biggest_chain_index = chain_index;
+    let mut blockchain: Blockchain = Blockchain::new();
+    if blockchains.len() == 0 { // load genesis block
+        blockchain.load_genesis_block(&keypairs[0].pub_key);
+    } else {
+        let mut biggest_chain_height: usize = 0;
+        let mut biggest_chain_index: usize = 0;
+        for chain_index in 0..blockchains.len() {
+            if blockchains[chain_index].blocks.len() > biggest_chain_height {
+                biggest_chain_height = blockchains[chain_index].blocks.len();
+                biggest_chain_index = chain_index;
+            }
         }
+    
+        blockchain = blockchains[biggest_chain_index].clone();
+        blockchain.update_utxo();
     }
-
-    let mut blockchain: Blockchain = blockchains[biggest_chain_index].clone();
-    blockchain.update_utxo(); 
 
     loop {
         let mut choice: String = String::new();
@@ -60,7 +66,7 @@ fn main() {
         } else if choice == "3".to_string() {
             send_money(&mut blockchain, &keypairs);
         } else if choice == "4".to_string() {
-            get_utxo(&blockchain);
+            get_utxo(&blockchain, &keypairs);
         } else if choice == "Q".to_string() || choice == "q".to_string() {
             break;
         }
@@ -101,7 +107,7 @@ fn compute_balance(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
         }
     }
 
-    println!("Balance: {}\n", computed_balance);
+    println!("Balance: ${}\n", computed_balance);
 }
 
 fn get_blockchain(blockchain: &Blockchain) {
@@ -125,14 +131,14 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
     let mut amount_str: String = String::new();
 
     println!("\nSender Account Index: ");
-    io::stdin().read_line(&mut sender_account_index_str);
+    io::stdin().read_line(&mut sender_account_index_str).expect("Failed to read line");
     println!("\nRecipient Account Index: ");
-    io::stdin().read_line(&mut recipient_account_index_str);
+    io::stdin().read_line(&mut recipient_account_index_str).expect("Failed to read line");
     println!("\nAmount of Money: ");
-    io::stdin().read_line(&mut amount_str);
+    io::stdin().read_line(&mut amount_str).expect("Failed to read line");
 
     let sender_account_index: usize = sender_account_index_str.trim().parse().unwrap();
-    let recipient_account_index: usize = sender_account_index_str.trim().parse().unwrap();
+    let recipient_account_index: usize = recipient_account_index_str.trim().parse().unwrap();
     let amount: u64 = amount_str.trim().parse().unwrap();
 
     let mut possible_tx_inputs: Vec<TxInput> = vec![];
@@ -175,8 +181,38 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
 
 }
 
-fn get_utxo(blockchain: &Blockchain) {
-    println!("UTXO Length: {}", blockchain.utxo.len());
+fn get_utxo(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
+    let mut utxo_length: usize = 0;
+    let mut tx_outputs: Vec<TxOutput> = vec![];
+
+    for tx in &blockchain.utxo {
+        utxo_length += tx.outputs.len();
+        for tx_output in &tx.outputs {
+            tx_outputs.push(tx_output.clone());
+        }
+    }
+    
+    for keypair in keypairs {
+        println!("{}", keypair.pub_key.hash_key());
+    }
+    println!("\nUTXO Length: {}", utxo_length);
+    for output in &tx_outputs {
+        let amount = output.amount;
+        let mut account_index: usize = 0;
+        
+        let mut key_pair_index: usize = 0; 
+        for keypair in keypairs {
+            if output.pub_key.hash_key() == keypair.pub_key.hash_key() {
+                account_index = key_pair_index;
+                break;
+            }
+            key_pair_index += 1;
+        }
+
+
+        println!("${0} for Account #{1}", amount, account_index);
+    }
+    print!("");
 }
 
 #[warn(dead_code)]

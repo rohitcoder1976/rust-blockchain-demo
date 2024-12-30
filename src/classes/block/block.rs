@@ -50,6 +50,6 @@ impl Block {
             attempts += 1;
         }
 
-        println!("\n--- Mined the block! ---\nBlock hash: {0}\nAttempts: {1}", self.block_header.hash_block(), attempts);
+        println!("\n--- Mined the block! ---\nBlock hash: {0}\nNonce: {1}\nTimestamp: {2}", self.block_header.hash_block(), self.block_header.nonce, self.block_header.timestamp);
     }
 }

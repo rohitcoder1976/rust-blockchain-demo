@@ -1,6 +1,9 @@
 use std::{collections::HashMap, vec};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use crate::{classes::{block::block::Block, transaction::tx::Tx}, util::disk::{load_branches_from_file, save_chain_branches_to_file}};
+use crate::{classes::{block::block::Block, lamport_signature::key_pair::{initialize_empty_key_blocks, Key}, transaction::tx::{Tx, TxInput, TxOutput}}, data_structures::merkle_tree::MerkleTree, util::disk::{load_branches_from_file, save_chain_branches_to_file}};
+
+use super::block_header::BlockHeader;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Blockchain {
@@ -172,14 +175,15 @@ impl Blockchain {
     }
 
     pub fn update_utxo(&mut self){
-        self.utxo = vec![];
+        // self.utxo = vec![];
+        let mut new_utxo: Vec<Tx> = vec![];
 
         for block in &self.blocks {
             // go through each transaction in the new block
             for tx in &block.txs.base {
                 // if no previous transaction to point to (coinbase transaction)
                 if tx.inputs[0].is_coinbase { 
-                    self.utxo.push(tx.clone());
+                    new_utxo.push(tx.clone());
                     continue;
                 }
 
@@ -188,30 +192,59 @@ impl Blockchain {
                     let prev_tx_id: String = new_tx_input.prev_tx_id.clone();
                     let prev_tx_index: usize = new_tx_input.index;
 
-                    let mut k: usize = 0; 
-                    // iterate through the utxo to find the prev_tx_id that the new transaction input points to
-                    for utxo_tx_index in 0..self.utxo.len() {
-                        let utxo_tx_id: String = self.utxo[utxo_tx_index].get_tx_id();
+                    let mut utxo_tx_index: usize = 0;
+                    for utxo_tx in new_utxo.clone() {
+                        let utxo_tx_id: String = utxo_tx.get_tx_id();
                         if prev_tx_id == utxo_tx_id { // if found the match, remove the output from the consumed utxo transaction
-                            self.utxo[utxo_tx_index].outputs.remove(prev_tx_index);
+                            new_utxo[utxo_tx_index].outputs.remove(prev_tx_index);
 
                             // if there are no outputs left in the consumed utxo transaction, delete the utxo transaction
-                            if self.utxo[utxo_tx_index].outputs.len() == 0 {
-                                self.utxo.remove(k);
+                            if new_utxo[utxo_tx_index].outputs.len() == 0 {
+                                new_utxo.remove(utxo_tx_index.clone());
+                                utxo_tx_index += 1;
                             }
                         } else {
                             print!("Error! Not found a matching input for a new transaction.");
                             return;
                         }
-                        k += 1;
-                    }   
+
+                        utxo_tx_index += 1;
+                    }
                 }
 
-                self.utxo.push(tx.clone());
+                new_utxo.push(tx.clone());
             }
         }
 
-        // println!("UTXO Len: {}", self.utxo.len());
+        self.utxo = new_utxo;
+    }
+
+    pub fn load_genesis_block(&mut self, pub_key: &Key){
+        let tx_inputs: Vec<TxInput> = vec![TxInput::new(initialize_empty_key_blocks(), "".to_string(), true, 0)];
+        let tx_outputs: Vec<TxOutput> = vec![TxOutput::new(pub_key.clone(), 100)];
+        let tx: Tx = Tx::new(tx_inputs, tx_outputs);
+        let tx_merkle_tree = MerkleTree::new(&vec![tx]);
+
+        let mut block: Block = Block {
+            // block_header: BlockHeader::new(tx_merkle_tree.merkle_root.clone(), "".to_string()),
+            block_header: BlockHeader {
+                prev_block_hash: "".to_string(),
+                target: 4,
+                merkle_root: tx_merkle_tree.merkle_root.clone(),
+                nonce: 56974,
+                timestamp: 1735577085,
+            },
+            txs: tx_merkle_tree
+        };
+
+        self.blocks.push(block);
+
+        match save_chain_branches_to_file(&vec![self.clone()]) {
+            Ok(()) => {},
+            Err(()) => {println!("Could not save genesis block to disk...")}
+        };
+
+        self.update_utxo();
     }
 
     fn insert_disk_blocks(&mut self) {
