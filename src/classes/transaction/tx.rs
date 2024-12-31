@@ -82,12 +82,67 @@ impl Tx {
         return hex_result;
     }
 
-    pub fn verify_signature(&self, pub_key: &Key) -> bool {
+    pub fn verify_transaction(&self, utxo: &Vec<Tx>) -> bool {
+        // check if the total input amount >= total output amount
+        
+        let mut input_sum: u64 = 0;
+        let mut output_sum: u64 = 0;
+
+        for tx_input in &self.inputs {
+            let prev_tx_id: &String = &tx_input.prev_tx_id;
+            let prev_tx_index = &tx_input.index;
+
+            let mut found_consumed_output: bool = false;
+            for utxo_tx in utxo {
+                // if found the transaction that holds the consumed output
+                if &utxo_tx.get_tx_id() == prev_tx_id && &utxo_tx.outputs.len() > prev_tx_index { 
+                    found_consumed_output = true;
+                    input_sum += utxo_tx.outputs[prev_tx_index.clone()].amount;
+                }
+            }
+
+            if !found_consumed_output {
+                println!("Could not find a matching output for a new transaction...");
+                return false;
+            }
+        }
+
+        for tx_output in &self.outputs {
+            output_sum += tx_output.amount;
+        }
+
+        if input_sum < output_sum {
+            println!("New transaction has more output amount than input amount...");
+            return false;
+        }
+
+        // verify all of the signatures
+        let verified_tx_signature = self.verify_signature(utxo);
+
+        return verified_tx_signature;
+    }
+
+    pub fn verify_signature(&self, utxo: &Vec<Tx>) -> bool {
         let tx_hash_bits: Vec<u8> = hex_string_to_bit_vector(self.get_tx_hash());
         let mut verified: bool = true;
 
         for input in &self.inputs {
             let input_signature: &[KeyBlock; 256] = &input.signature;
+
+            let mut pub_key_option: Option<Key> = None;
+            for utxo_tx in utxo {
+                if utxo_tx.get_tx_id() == input.prev_tx_id {
+                    pub_key_option = Some(utxo_tx.outputs[input.index].pub_key.clone());
+                    break;
+                }
+            }
+
+            if pub_key_option.is_none() {
+                println!("Could not find matching output for transaction input...");
+                return false;
+            }
+
+            let pub_key: Key = pub_key_option.unwrap();
 
             let mut j= 0;
             for bit in &tx_hash_bits {

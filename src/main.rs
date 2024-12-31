@@ -152,12 +152,15 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
         tx_outputs.push(self_tx_output);
     }
 
-    let mut transaction = Tx::new(possible_tx_inputs, tx_outputs);
+    let mut transaction: Tx = Tx::new(possible_tx_inputs, tx_outputs);
     for tx_input_index in 0..transaction.inputs.len() {
         transaction.inputs[tx_input_index].signature = keypair.create_signature(&transaction);
     }
 
-    let mut block: Block = Block::new(&vec![transaction], blockchain.blocks[blockchain.blocks.len()-1].block_header.hash_block());
+    let miner_transaction: Tx = 
+    Tx::new(vec![TxInput::new(initialize_empty_key_blocks(), "".to_string(), true, 0)], vec![TxOutput::new(keypairs[0].pub_key.clone(), 100)]);
+
+    let mut block: Block = Block::new(&vec![miner_transaction, transaction], blockchain.blocks[blockchain.blocks.len()-1].block_header.hash_block());
     block.mine_block();
     blockchain.accept_new_block(&block);
 
