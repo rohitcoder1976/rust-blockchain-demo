@@ -191,10 +191,7 @@ fn get_utxo(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
             tx_outputs.push(tx_output.clone());
         }
     }
-    
-    for keypair in keypairs {
-        println!("{}", keypair.pub_key.hash_key());
-    }
+
     println!("\nUTXO Length: {}", utxo_length);
     for output in &tx_outputs {
         let amount = output.amount;
@@ -212,7 +209,7 @@ fn get_utxo(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
 
         println!("${0} for Account #{1}", amount, account_index);
     }
-    print!("");
+    println!("");
 }
 
 #[warn(dead_code)]

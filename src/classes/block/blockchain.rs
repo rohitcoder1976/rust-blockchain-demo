@@ -193,9 +193,11 @@ impl Blockchain {
                     let prev_tx_index: usize = new_tx_input.index;
 
                     let mut utxo_tx_index: usize = 0;
+                    let mut found_matching_output= false;
                     for utxo_tx in new_utxo.clone() {
                         let utxo_tx_id: String = utxo_tx.get_tx_id();
                         if prev_tx_id == utxo_tx_id { // if found the match, remove the output from the consumed utxo transaction
+                            found_matching_output = true;
                             new_utxo[utxo_tx_index].outputs.remove(prev_tx_index);
 
                             // if there are no outputs left in the consumed utxo transaction, delete the utxo transaction
@@ -203,12 +205,13 @@ impl Blockchain {
                                 new_utxo.remove(utxo_tx_index.clone());
                                 utxo_tx_index += 1;
                             }
-                        } else {
-                            print!("Error! Not found a matching input for a new transaction.");
-                            return;
-                        }
-
+                        } 
                         utxo_tx_index += 1;
+                    }
+
+                    if !found_matching_output {
+                        println!("Could not find the matching output for a new transaction.");
+                        return;
                     }
                 }
 
