@@ -7,11 +7,9 @@ use std::io;
 use chrono::{NaiveDateTime, TimeZone, Utc};
 use classes::block::block::Block;
 use classes::block::blockchain::Blockchain;
-use classes::lamport_signature::key_pair::{KeyPair, KeyBlock, initialize_empty_key_blocks};
+use classes::lamport_signature::key_pair::{KeyPair, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
 
-use rand::Rng;
-use sha2::{Sha256, Digest};
 use util::disk::{load_branches_from_file, load_keypairs_from_file};
 
 fn main() {
@@ -56,7 +54,7 @@ fn main() {
     loop {
         let mut choice: String = String::new();
         println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
-        io::stdin().read_line(&mut choice);
+        io::stdin().read_line(&mut choice).expect("Failed to read line...");
         choice = choice.trim().to_string();
     
         if choice == "1".to_string() {
@@ -71,30 +69,14 @@ fn main() {
             break;
         }
     }
- 
 
-    // let mut tx_inputs: Vec<TxInput> = Vec::new();
-    // let prev_tx_id = String::new();
-    // tx_inputs.push(TxInput::new(initialize_empty_key_blocks(), prev_tx_id, true));
-
-    // let mut tx_outputs: Vec<TxOutput> = Vec::new();
-    // tx_outputs.push(TxOutput::new(new_key_pair1.pub_key.clone(), 100));
-
-    // let mut new_tx = Tx::new(tx_inputs, tx_outputs);
-
-    // let signature: [KeyBlock; 256] = new_key_pair1.create_signature(&new_tx);
-    // new_tx.inputs[0].signature = signature;
-
-    // println!("Transaction is verified: {}", new_tx.verify_signature(&new_key_pair1.pub_key));
-    // let mut tx_vec: Vec<Tx> = vec![];
-    // tx_vec.push(new_tx);
 }
 
 fn compute_balance(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
     let utxo: &Vec<Tx> = &blockchain.utxo;
     let mut account_index_str: String = String::new();
     println!("\nAccount Index: ");
-    io::stdin().read_line(&mut account_index_str);
+    io::stdin().read_line(&mut account_index_str).expect("Failed to read line...");
     let account_index: usize = account_index_str.trim().parse().unwrap();
     let mut computed_balance: u64 = 0;
 
@@ -210,72 +192,4 @@ fn get_utxo(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
         println!("${0} for Account #{1}", amount, account_index);
     }
     println!("");
-}
-
-#[warn(dead_code)]
-fn test_blockchain(tx_vec: Vec<Tx>){
-    let mut blockchain = Blockchain::new();
-    let mut block_1: Block = Block::new(&tx_vec, "".to_string());
-    block_1.mine_block();
-    let block_1_hash: String = block_1.block_header.hash_block();
-    blockchain.accept_new_block(&block_1);
-
-    let mut block_2: Block = Block::new(&tx_vec, block_1_hash.clone());
-    block_2.mine_block();
-    let block_2_hash: String = block_2.block_header.hash_block();
-    blockchain.accept_new_block(&block_2);
-
-    let mut block_3: Block = Block::new(&tx_vec, block_1_hash.clone());
-    block_3.mine_block();
-    let block_3_hash: String = block_3.block_header.hash_block();
-    blockchain.accept_new_block(&block_3);
-
-    let mut block_4: Block = Block::new(&tx_vec, block_3_hash.clone());
-    block_4.mine_block();
-    let block_4_hash: String = block_4.block_header.hash_block();
-    blockchain.accept_new_block(&block_4);
-
-    let mut block_5: Block = Block::new(&tx_vec, block_2_hash.clone());
-    block_5.mine_block();
-    let block_5_hash: String = block_5.block_header.hash_block();
-    blockchain.accept_new_block(&block_5);
-
-    let mut block_6: Block = Block::new(&tx_vec, block_4_hash.clone());
-    block_6.mine_block();
-    let block_6_hash: String = block_6.block_header.hash_block();
-    blockchain.accept_new_block(&block_6);
-
-    let mut block_7: Block = Block::new(&tx_vec, block_3_hash.clone());
-    block_7.mine_block();
-    let block_7_hash: String = block_7.block_header.hash_block();
-    blockchain.accept_new_block(&block_7);
-
-    let mut block_8: Block = Block::new(&tx_vec, block_7_hash.clone());
-    block_8.mine_block();
-    let block_8_hash: String = block_8.block_header.hash_block();
-    blockchain.accept_new_block(&block_8);
-
-    println!("\n--- Blockchain ---");
-    for block in &blockchain.blocks {
-        println!("Block hash: {}", block.block_header.hash_block());
-    }
-
-    println!("");
-
-    println!("---- LOADED BLOCKCHAINS ----\n");
-    let loaded_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
-    let loaded_chains = match loaded_chains_result {
-        Ok(val) => val,
-        Err(e) => vec![]
-    };
-
-    let mut i: usize = 0; 
-    for loaded_chain in &loaded_chains {
-        println!("-- Blockchain #{} --", i+1);
-        for loaded_chain_block in &loaded_chain.blocks {
-            println!("Block hash: {}", loaded_chain_block.block_header.hash_block());
-        }
-        println!("");
-        i += 1;
-    }
 }

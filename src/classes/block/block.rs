@@ -21,7 +21,7 @@ impl Block {
     
     pub fn mine_block(&mut self) {
         let target: u8 = self.block_header.target;
-        let mut attempts: u128 = 0;
+        // let mut attempts: u128 = 0;
         loop {
             let mut leading_zeros: u8 = 0;
             let block_hash: String = self.block_header.hash_block(); // compute the hash of the block
@@ -47,7 +47,7 @@ impl Block {
                 self.block_header.nonce += 1;
             }
 
-            attempts += 1;
+            // attempts += 1;
         }
 
         println!("\n--- Mined the block! ---\nBlock hash: {0}\nNonce: {1}\nTimestamp: {2}", self.block_header.hash_block(), self.block_header.nonce, self.block_header.timestamp);

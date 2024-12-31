@@ -26,7 +26,7 @@ impl Tx {
     pub fn convert_tx_to_bytes(&self) -> Vec<u8> {
         let bytes: Vec<u8> = match bincode::serialize(self) {
             Ok(val) => val,
-            Err(e) => {
+            Err(_e) => {
                 println!("Error! Could not convert transaction to bytes.");
                 vec![]
             }
@@ -37,7 +37,7 @@ impl Tx {
     pub fn get_tx_id(&self) -> String {
         let bytes: Vec<u8> = match bincode::serialize(self) {
             Ok(val) => val,
-            Err(e) => {
+            Err(_e) => {
                 println!("Error! Could not convert transaction to bytes.");
                 vec![]
             }

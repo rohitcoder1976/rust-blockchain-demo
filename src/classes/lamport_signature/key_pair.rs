@@ -95,7 +95,7 @@ impl Key {
     pub fn convert_key_to_bytes(&self) -> Vec<u8> {
         let bytes: Vec<u8> = match bincode::serialize(self) {
             Ok(val) => val,
-            Err(e) => {
+            Err(_e) => {
                 println!("Error! Could not convert key to bytes");
                 vec![]
             }
@@ -107,7 +107,7 @@ impl Key {
     pub fn hash_key(&self) -> String {
         let bytes: Vec<u8> = match bincode::serialize(self) {
             Ok(val) => val,
-            Err(e) => {
+            Err(_e) => {
                 println!("Error! Could not convert key to bytes");
                 vec![]
             }

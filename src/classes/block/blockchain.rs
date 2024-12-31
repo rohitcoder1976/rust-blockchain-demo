@@ -1,5 +1,4 @@
 use std::{collections::HashMap, vec};
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use crate::{classes::{block::block::Block, lamport_signature::key_pair::{initialize_empty_key_blocks, Key}, transaction::tx::{Tx, TxInput, TxOutput}}, data_structures::merkle_tree::MerkleTree, util::disk::{load_branches_from_file, save_chain_branches_to_file}};
 
@@ -175,7 +174,6 @@ impl Blockchain {
     }
 
     pub fn update_utxo(&mut self){
-        // self.utxo = vec![];
         let mut new_utxo: Vec<Tx> = vec![];
 
         for block in &self.blocks {
@@ -226,10 +224,9 @@ impl Blockchain {
         let tx_inputs: Vec<TxInput> = vec![TxInput::new(initialize_empty_key_blocks(), "".to_string(), true, 0)];
         let tx_outputs: Vec<TxOutput> = vec![TxOutput::new(pub_key.clone(), 100)];
         let tx: Tx = Tx::new(tx_inputs, tx_outputs);
-        let tx_merkle_tree = MerkleTree::new(&vec![tx]);
+        let tx_merkle_tree: MerkleTree = MerkleTree::new(&vec![tx]);
 
-        let mut block: Block = Block {
-            // block_header: BlockHeader::new(tx_merkle_tree.merkle_root.clone(), "".to_string()),
+        let block: Block = Block {
             block_header: BlockHeader {
                 prev_block_hash: "".to_string(),
                 target: 4,

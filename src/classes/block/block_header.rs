@@ -30,7 +30,7 @@ impl BlockHeader {
     pub fn hash_block(&self) -> String {
         let bytes: Vec<u8> = match bincode::serialize(self) {
             Ok(value) => value,
-            Err(e) => {
+            Err(_e) => {
                 println!("Error! Could not hash block");
                 vec![]
             }
