@@ -221,52 +221,58 @@ impl Blockchain {
     pub fn update_utxo(&mut self){
         let mut new_utxo: Vec<Tx> = vec![];
 
+        let mut block_index = 0; 
         for block in &self.blocks {
             // go through each transaction in the new block
             for tx in &block.txs.base {
                 // if no previous transaction to point to (coinbase transaction)
                 if tx.inputs[0].is_coinbase { 
+                    println!("Coinbase transaction in block {0}. Amount is ${1}", block_index, &tx.outputs[0].amount);
                     new_utxo.push(tx.clone());
-                    continue;
-                }
+                } else {
+                    // iterate through each input for every transaction in the block
+                    for new_tx_input in &tx.inputs {
+                        if new_tx_input.is_coinbase {
+                            continue;
+                        }
 
-                // iterate through each input for every transaction in the block
-                for new_tx_input in &tx.inputs {
-                    if new_tx_input.is_coinbase {
-                        continue;
-                    }
+                        let prev_tx_id: String = new_tx_input.prev_tx_id.clone();
+                        let prev_tx_index: usize = new_tx_input.index;
 
-                    let prev_tx_id: String = new_tx_input.prev_tx_id.clone();
-                    let prev_tx_index: usize = new_tx_input.index;
+                        let mut utxo_tx_index: usize = 0;
+                        let mut found_matching_output= false;
+                        for utxo_tx in new_utxo.clone() {
+                            let utxo_tx_id: String = utxo_tx.get_tx_id();
+                            let mut deleted_utxo_tx = false;
+                            if prev_tx_id == utxo_tx_id { // if found the match, remove the output from the consumed utxo transaction
+                                found_matching_output = true;
+                                new_utxo[utxo_tx_index].outputs.remove(prev_tx_index);
 
-                    let mut utxo_tx_index: usize = 0;
-                    let mut found_matching_output= false;
-                    for utxo_tx in new_utxo.clone() {
-                        let utxo_tx_id: String = utxo_tx.get_tx_id();
-                        let mut deleted_utxo_tx = false;
-                        if prev_tx_id == utxo_tx_id { // if found the match, remove the output from the consumed utxo transaction
-                            found_matching_output = true;
-                            new_utxo[utxo_tx_index].outputs.remove(prev_tx_index);
-
-                            // if there are no outputs left in the consumed utxo transaction, delete the utxo transaction
-                            if new_utxo[utxo_tx_index].outputs.len() == 0 {
-                                new_utxo.remove(utxo_tx_index.clone());
-                                deleted_utxo_tx = true;
+                                // if there are no outputs left in the consumed utxo transaction, delete the utxo transaction
+                                if new_utxo[utxo_tx_index].outputs.len() == 0 {
+                                    new_utxo.remove(utxo_tx_index.clone());
+                                    deleted_utxo_tx = true;
+                                }
+                            } 
+                            if !deleted_utxo_tx {
+                                utxo_tx_index += 1;
                             }
-                        } 
-                        if !deleted_utxo_tx {
-                            utxo_tx_index += 1;
+                        }
+
+                        if !found_matching_output {
+                            println!("Could not find the matching output for a new transaction.");
+                            return;
                         }
                     }
 
-                    if !found_matching_output {
-                        println!("Could not find the matching output for a new transaction.");
-                        return;
-                    }
+                    new_utxo.push(tx.clone());
                 }
-
-                new_utxo.push(tx.clone());
             }
+            block_index += 1;
+        }
+
+        for tx_in_new_utxo in &new_utxo {
+            println!("${0} for {1}", tx_in_new_utxo.outputs[0].amount, tx_in_new_utxo.outputs[0].pub_key.hash_key());
         }
 
         self.utxo = new_utxo;

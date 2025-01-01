@@ -10,6 +10,7 @@ use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
 
+use rand::Rng;
 use util::disk::{load_branches_from_file, load_keypairs_from_file};
 
 fn main() {
@@ -157,8 +158,16 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
         transaction.inputs[tx_input_index].signature = keypair.create_signature(&transaction);
     }
 
+    let mut rng = rand::thread_rng();
+
+    // Generate a random number (e.g., an integer between 1 and 100)
+    let random_number = rng.gen_range(1..=1000000000);
+
+    // Convert the number to a string
+    let random_number_string: String = random_number.to_string();
+
     let miner_transaction: Tx = 
-    Tx::new(vec![TxInput::new(initialize_empty_key_blocks(), "".to_string(), true, 0)], vec![TxOutput::new(keypairs[0].pub_key.clone(), 100)]);
+    Tx::new(vec![TxInput::new(initialize_empty_key_blocks(), random_number_string, true, 0)], vec![TxOutput::new(keypairs[0].pub_key.clone(), 100)]);
 
     let mut block: Block = Block::new(&vec![miner_transaction, transaction], blockchain.blocks[blockchain.blocks.len()-1].block_header.hash_block());
     block.mine_block();
