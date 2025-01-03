@@ -16,7 +16,7 @@ use classes::transaction::tx::{Tx, TxInput, TxOutput};
 
 use node::init_tcp_server;
 use rand::Rng;
-use util::disk::{load_branches_from_file, load_keypairs_from_file};
+use util::disk::{load_branches_from_file, load_keypairs_from_file, save_chain_branches_to_file};
 
 fn main() {
     let keypairs_result: Result<Vec<KeyPair>, ()> = load_keypairs_from_file();
@@ -42,6 +42,7 @@ fn main() {
     let mut blockchain: Blockchain = Blockchain::new();
     if blockchains.len() == 0 { // load genesis block
         blockchain.load_genesis_block(&keypairs[0].pub_key);
+        get_blocks(&mut blockchain);
     } else {
         let mut biggest_chain_height: usize = 0;
         let mut biggest_chain_index: usize = 0;
@@ -94,7 +95,30 @@ fn main() {
     }
 }
 
-// fn get_blocks(mut stream: )
+fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
+    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
+    println!("Connected to peer!");
+
+    let message = "GET /blocks";
+    stream.write_all(message.as_bytes())?;
+    println!("Request to retrieve blocks is sent...");
+
+    let mut buffer: Vec<u8> = Vec::new();
+    let bytes_read = stream.read(&mut buffer)?;
+
+    let blocks: Result<Vec<Block>, bincode::Error> = bincode::deserialize(&buffer);
+    match blocks {
+        Ok(blocks) => {
+            blockchain.blocks = blocks;
+            blockchain.choose_valid_chain_and_update_utxo();
+        },
+        Err(e) => {
+            println!("Could not deserialize blocks sent by trusted node");
+        }
+    }
+
+    Ok(())
+}
 
 // node server
 fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
