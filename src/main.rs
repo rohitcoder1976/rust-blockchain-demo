@@ -80,8 +80,8 @@ fn main() {
     });
 
    
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:8000").expect("Could not bind server to address");
-    println!("Server listening on 127.0.0.1:8000");
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:8080").expect("Could not bind server to address");
+    println!("Server listening on 127.0.0.1:8080");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
@@ -104,9 +104,9 @@ fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
     println!("Request to retrieve blocks is sent...");
 
     let mut buffer: Vec<u8> = Vec::new();
-    let bytes_read = stream.read(&mut buffer)?;
+    let bytes_read: usize = stream.read(&mut buffer)?;
 
-    let blocks: Result<Vec<Block>, bincode::Error> = bincode::deserialize(&buffer);
+    let blocks: Result<Vec<Block>, bincode::Error> = bincode::deserialize(&buffer[..bytes_read]);
     match blocks {
         Ok(blocks) => {
             blockchain.blocks = blocks;
