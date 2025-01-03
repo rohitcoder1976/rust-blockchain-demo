@@ -57,8 +57,30 @@ fn main() {
     }
 
     let blockchain_arc: Arc<RwLock<Blockchain>> = Arc::new(RwLock::new(blockchain));
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:8080").expect("Could not bind server to address");
-    println!("Server listening on 127.0.0.1:8080");
+    let blockchain_copy: Arc<RwLock<Blockchain>> =  Arc::clone(&blockchain_arc);
+
+    std::thread::spawn(move || {
+        let mut blockchain = blockchain_copy.write().expect("Could not get blockchain");
+        loop {
+            let mut choice: String = String::new();
+            println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
+            io::stdin().read_line(&mut choice).expect("Failed to read line...");
+            choice = choice.trim().to_string();
+        
+            match choice.trim() {
+                "1" => get_blockchain(&blockchain),
+                "2" => compute_balance(&*blockchain, &keypairs),
+                "3" => send_money(&mut *blockchain, &keypairs),
+                "4" => get_utxo(&*blockchain, &keypairs),
+                "Q" | "q" => break,
+                _ => println!("Invalid choice! Please try again."),
+            }
+        }
+    });
+
+   
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:8000").expect("Could not bind server to address");
+    println!("Server listening on 127.0.0.1:8000");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
@@ -70,27 +92,9 @@ fn main() {
             }
         }
     }
-
-    std::thread::spawn(move || {
-        let mut blockchain = blockchain_arc.write().unwrap();
-        loop {
-            let mut choice: String = String::new();
-            println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
-            io::stdin().read_line(&mut choice).expect("Failed to read line...");
-            choice = choice.trim().to_string();
-        
-            match choice.trim() {
-                "1" => get_blockchain(&*blockchain),
-                "2" => compute_balance(&*blockchain, &keypairs),
-                "3" => send_money(&mut *blockchain, &keypairs),
-                "4" => get_utxo(&*blockchain, &keypairs),
-                "Q" | "q" => break,
-                _ => println!("Invalid choice! Please try again."),
-            }
-        }
-    });
-
 }
+
+// fn get_blocks(mut stream: )
 
 // node server
 fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
