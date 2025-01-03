@@ -1,8 +1,12 @@
 mod classes;
 mod util;
 mod data_structures;
+mod node;
 
 use std::io;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::{Arc, RwLock};
 
 use chrono::{NaiveDateTime, TimeZone, Utc};
 use classes::block::block::Block;
@@ -10,11 +14,11 @@ use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
 
+use node::init_tcp_server;
 use rand::Rng;
 use util::disk::{load_branches_from_file, load_keypairs_from_file};
 
 fn main() {
-
     let keypairs_result: Result<Vec<KeyPair>, ()> = load_keypairs_from_file();
     let keypairs: Vec<KeyPair> = match keypairs_result {
         Ok(val) => {
@@ -52,24 +56,76 @@ fn main() {
         blockchain.update_utxo();
     }
 
-    loop {
-        let mut choice: String = String::new();
-        println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
-        io::stdin().read_line(&mut choice).expect("Failed to read line...");
-        choice = choice.trim().to_string();
-    
-        if choice == "1".to_string() {
-            get_blockchain(&blockchain);
-        } else if choice == "2".to_string() {
-            compute_balance(&blockchain, &keypairs);
-        } else if choice == "3".to_string() {
-            send_money(&mut blockchain, &keypairs);
-        } else if choice == "4".to_string() {
-            get_utxo(&blockchain, &keypairs);
-        } else if choice == "Q".to_string() || choice == "q".to_string() {
-            break;
+    let blockchain_arc: Arc<RwLock<Blockchain>> = Arc::new(RwLock::new(blockchain));
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:8080").expect("Could not bind server to address");
+    println!("Server listening on 127.0.0.1:8080");
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                let blockchain_copy: Arc<RwLock<Blockchain>> = Arc::clone(&blockchain_arc);
+                std::thread::spawn( || handle_client(stream, blockchain_copy));
+            },
+            Err(e) => {
+                eprint!("Error: could not read the stream -- {}", e);
+            }
         }
     }
+
+    std::thread::spawn(move || {
+        let mut blockchain = blockchain_arc.write().unwrap();
+        loop {
+            let mut choice: String = String::new();
+            println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
+            io::stdin().read_line(&mut choice).expect("Failed to read line...");
+            choice = choice.trim().to_string();
+        
+            match choice.trim() {
+                "1" => get_blockchain(&*blockchain),
+                "2" => compute_balance(&*blockchain, &keypairs),
+                "3" => send_money(&mut *blockchain, &keypairs),
+                "4" => get_utxo(&*blockchain, &keypairs),
+                "Q" | "q" => break,
+                _ => println!("Invalid choice! Please try again."),
+            }
+        }
+    });
+
+}
+
+// node server
+fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
+    let mut buffer: [u8; 1024] = [0; 1024];
+    let blockchain = blockchain.read().unwrap();
+    stream.read(&mut buffer).expect("Failed to read request buffer");
+    
+    let request_str: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buffer[..]);
+    println!("Request received: {}", request_str);
+    let response: &[u8] = "Hello There!".as_bytes();
+
+    if request_str.contains("GET /blocks") {
+        let blocks: Vec<Block> = blockchain.blocks.clone();
+        let blocks_bytes_result: Result<Vec<u8>, Box<bincode::ErrorKind>> = bincode::serialize(&blocks);
+        let blocks_bytes: Vec<u8> = match blocks_bytes_result {
+            Ok(val) => val,
+            Err(e) => {
+                println!("Could not serialize blocks into bytes");
+                vec![]
+            }
+        };
+
+        if blocks_bytes.len() == 0 {
+            return;
+        }
+
+        stream.write(blocks_bytes.as_slice()).expect("Could not send blocks to tcp client");
+        return;
+    } else if request_str.contains("GET /utxo") {
+        
+    } else if request_str.contains("POST /new_tx") {
+
+    }
+
+    stream.write(response).expect("Could not send back response...");
 
 }
 
