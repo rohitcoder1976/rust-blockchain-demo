@@ -12,7 +12,7 @@ pub struct Block {
 
 impl Block {
     pub fn new(txs: &Vec<Tx>, prev_block_hash: String) -> Block {
-        let tx_merkle_tree = MerkleTree::new(txs);
+        let tx_merkle_tree: MerkleTree = MerkleTree::new(txs);
         return Block {
             block_header: BlockHeader::new(tx_merkle_tree.merkle_root.clone(), prev_block_hash),
             txs: tx_merkle_tree,

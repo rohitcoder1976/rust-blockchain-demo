@@ -1,14 +1,12 @@
 use std::{fs::File, io::{self, Read, Write}};
 
-use bincode::de;
-
 use crate::classes::{block::blockchain::Blockchain, lamport_signature::key_pair::KeyPair};
 
 pub fn save_chain_branches_to_file(chains: &Vec<Blockchain>) -> Result<(), ()> {
-    let mut file_result = File::create("branches.bin");
+    let file_result = File::create("branches.bin");
     let mut file: File = match file_result {
         Ok(val) => val,
-        Err(err) => {
+        Err(_err) => {
             println!("Could not save create file");
             return Err(());
         }
@@ -17,7 +15,7 @@ pub fn save_chain_branches_to_file(chains: &Vec<Blockchain>) -> Result<(), ()> {
     let encoded_result = bincode::serialize(chains);
     let encoded = match encoded_result {
         Ok(val) => val,
-        Err(e) => vec![]
+        Err(_e) => vec![]
     };
     
     let write_result = file.write_all(&encoded);
@@ -33,18 +31,17 @@ pub fn load_branches_from_file() -> Result<Vec<Blockchain>, ()> {
     let file_result: Result<File, io::Error> = File::open("branches.bin");
     let mut file = match file_result {
         Ok(val) => val,
-        Err(err) => {
-            // println!("Failed to read chain branches file...");
+        Err(_err) => {
             return Err(())
         }
     } ;
 
     let mut encoded= Vec::new();
-    file.read_to_end(&mut encoded);
+    let _ = file.read_to_end(&mut encoded);
     let decoded_result: Result<Vec<Blockchain>, Box<bincode::ErrorKind>> = bincode::deserialize(&encoded);
     let decoded: Vec<Blockchain> = match decoded_result {
         Ok(val) => val,
-        Err(e) => {
+        Err(_e) => {
             println!("Failed to decode chain branches saved to disk...");
             vec![]
         }
@@ -61,7 +58,7 @@ pub fn load_keypairs_from_file() -> Result<Vec<KeyPair>, ()> {
     let file_result: Result<File, io::Error> = File::open("keypairs.bin");
     let mut file = match file_result {
         Ok(val) => val,
-        Err(err) => {
+        Err(_err) => {
             // println!("Failed to read chain branches file...");
             return Err(())
         }
@@ -70,8 +67,8 @@ pub fn load_keypairs_from_file() -> Result<Vec<KeyPair>, ()> {
     let mut encoded= Vec::new();
     let file_read_result: Result<usize, io::Error> = file.read_to_end(&mut encoded);
     match file_read_result {
-        Ok(val) => {},
-        Err(e) => {
+        Ok(_val) => {},
+        Err(_e) => {
             println!("Could not load key pairs...");
         }
     };
@@ -79,7 +76,7 @@ pub fn load_keypairs_from_file() -> Result<Vec<KeyPair>, ()> {
     let decoded_result: Result<Vec<KeyPair>, Box<bincode::ErrorKind>> = bincode::deserialize(&encoded);
     let decoded: Vec<KeyPair> = match decoded_result {
         Ok(val) => val,
-        Err(e) => {
+        Err(_e) => {
             println!("Failed to decode key pairs saved to disk...");
             vec![]
         }
