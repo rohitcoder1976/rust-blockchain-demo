@@ -39,13 +39,13 @@ fn main() {
 
     let mut blockchain: Blockchain = Blockchain::new();
     if blockchains.len() == 0 { // load genesis block
-        // blockchain.load_genesis_block(&keypairs[0].pub_key);
         let blocks_result: Result<(), io::Error> = get_blocks(&mut blockchain);
         match blocks_result {
             Ok(()) => {
                 println!("Retrieved blocks from node...");
             },
             Err(e) => {
+                blockchain.load_genesis_block(&keypairs[0].pub_key);
                 eprint!("Failed to retrieve blocks from node: {}", e);
             }
         }

@@ -11,5 +11,5 @@ This project uses the Rust package manager `cargo`.
 To run the project, run this command:
 
 ```
-    cargo run
+cargo run
 ```
