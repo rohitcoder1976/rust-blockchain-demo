@@ -24,6 +24,14 @@ impl Blockchain {
         let prev_block_hash = &block.block_header.prev_block_hash;
         let mut found_prev_block: bool = false;
 
+        if self.blocks.len() == 0 {
+            if block.block_header.hash_block() == "00008e0b7979f791f1901bb55d418f33b9db1c830ae62fd2a4bcd7d8a215a5c3".to_string() {
+                self.blocks.push(block.clone());
+                self.update_utxo();
+                return;
+            }
+        }
+
         // try to find the new block in the valid chain
         for block_in_chain in &self.blocks {
             if &block_in_chain.block_header.hash_block() == prev_block_hash {
@@ -136,7 +144,7 @@ impl Blockchain {
         
         let reversed_blocks: &Vec<Block> = &self.blocks.iter().rev().cloned().collect();
         let mut checked_blocks: HashMap<String, bool> = HashMap::new();
-
+        
         /*
             Identify all branches an store them. 
             Every branch will have a unique final block in the chain.

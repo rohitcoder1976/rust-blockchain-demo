@@ -14,9 +14,8 @@ use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
 
-use node::init_tcp_server;
 use rand::Rng;
-use util::disk::{load_branches_from_file, load_keypairs_from_file, save_chain_branches_to_file};
+use util::disk::{load_branches_from_file, load_keypairs_from_file};
 
 fn main() {
     let keypairs_result: Result<Vec<KeyPair>, ()> = load_keypairs_from_file();
@@ -41,8 +40,16 @@ fn main() {
 
     let mut blockchain: Blockchain = Blockchain::new();
     if blockchains.len() == 0 { // load genesis block
-        blockchain.load_genesis_block(&keypairs[0].pub_key);
-        get_blocks(&mut blockchain);
+        // blockchain.load_genesis_block(&keypairs[0].pub_key);
+        let blocks_result: Result<(), io::Error> = get_blocks(&mut blockchain);
+        match blocks_result {
+            Ok(()) => {
+                println!("Retrieved blocks from node...");
+            },
+            Err(e) => {
+                eprint!("Failed to retrieve blocks from node: {}", e);
+            }
+        }
     } else {
         let mut biggest_chain_height: usize = 0;
         let mut biggest_chain_index: usize = 0;
@@ -61,18 +68,29 @@ fn main() {
     let blockchain_copy: Arc<RwLock<Blockchain>> =  Arc::clone(&blockchain_arc);
 
     std::thread::spawn(move || {
-        let mut blockchain = blockchain_copy.write().expect("Could not get blockchain");
         loop {
             let mut choice: String = String::new();
             println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
             io::stdin().read_line(&mut choice).expect("Failed to read line...");
             choice = choice.trim().to_string();
-        
+
             match choice.trim() {
-                "1" => get_blockchain(&blockchain),
-                "2" => compute_balance(&*blockchain, &keypairs),
-                "3" => send_money(&mut *blockchain, &keypairs),
-                "4" => get_utxo(&*blockchain, &keypairs),
+                "1" => {
+                    let blockchain = blockchain_copy.read().unwrap();
+                    get_blockchain(&blockchain);
+                }
+                "2" => {
+                    let blockchain = blockchain_copy.read().unwrap();
+                    compute_balance(&blockchain, &keypairs);
+                }
+                "3" => {
+                    let mut blockchain = blockchain_copy.write().unwrap();
+                    send_money(&mut blockchain, &keypairs);
+                }
+                "4" => {
+                    let blockchain = blockchain_copy.read().unwrap();
+                    get_utxo(&blockchain, &keypairs);
+                }
                 "Q" | "q" => break,
                 _ => println!("Invalid choice! Please try again."),
             }
@@ -80,11 +98,12 @@ fn main() {
     });
 
    
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:8080").expect("Could not bind server to address");
-    println!("Server listening on 127.0.0.1:8080");
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:8001").expect("Could not bind server to address");
+    println!("Server listening on 127.0.0.1:8001");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
+                print!("New TCP Stream Detected");
                 let blockchain_copy: Arc<RwLock<Blockchain>> = Arc::clone(&blockchain_arc);
                 std::thread::spawn( || handle_client(stream, blockchain_copy));
             },
@@ -96,30 +115,25 @@ fn main() {
 }
 
 fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
-    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
+    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8001")?;
     println!("Connected to peer!");
 
     let message = "GET /blocks";
     stream.write_all(message.as_bytes())?;
+
     println!("Request to retrieve blocks is sent...");
+    let mut len_buf: [u8; 4] = [0u8; 4];
+    stream.read_exact(&mut len_buf)?;
+    let msg_len: usize = u32::from_be_bytes(len_buf) as usize;
 
-    let mut buffer: Vec<u8> = Vec::new();
-    let bytes_read: usize = stream.read(&mut buffer)?;
-
-    let blocks: Result<Vec<Block>, bincode::Error> = bincode::deserialize(&buffer[..bytes_read]);
-    match blocks {
-        Ok(blocks) => {
-            blockchain.blocks = blocks;
-            blockchain.choose_valid_chain_and_update_utxo();
-        },
-        Err(e) => {
-            println!("Could not deserialize blocks sent by trusted node");
-        }
-    }
+    let mut buffer: Vec<u8> = vec![0u8; msg_len];
+    stream.read_exact(&mut buffer)?;
+    let blocks: Vec<Block> = bincode::deserialize(&buffer).expect("Could not deserialize blocks");
+    blockchain.blocks = blocks;
+    blockchain.choose_valid_chain_and_update_utxo();
 
     Ok(())
 }
-
 // node server
 fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
     let mut buffer: [u8; 1024] = [0; 1024];
@@ -128,14 +142,13 @@ fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
     
     let request_str: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buffer[..]);
     println!("Request received: {}", request_str);
-    let response: &[u8] = "Hello There!".as_bytes();
 
     if request_str.contains("GET /blocks") {
         let blocks: Vec<Block> = blockchain.blocks.clone();
         let blocks_bytes_result: Result<Vec<u8>, Box<bincode::ErrorKind>> = bincode::serialize(&blocks);
         let blocks_bytes: Vec<u8> = match blocks_bytes_result {
             Ok(val) => val,
-            Err(e) => {
+            Err(_e) => {
                 println!("Could not serialize blocks into bytes");
                 vec![]
             }
@@ -145,6 +158,9 @@ fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
             return;
         }
 
+        let len = (blocks_bytes.len() as u32).to_be_bytes();
+
+        stream.write(&len).expect("Could not send message length delimiter");
         stream.write(blocks_bytes.as_slice()).expect("Could not send blocks to tcp client");
         return;
     } else if request_str.contains("GET /utxo") {
@@ -153,6 +169,7 @@ fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
 
     }
 
+    let response: &[u8] = "Error: Could not send blocks...".as_bytes();
     stream.write(response).expect("Could not send back response...");
 
 }
