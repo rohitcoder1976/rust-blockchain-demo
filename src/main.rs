@@ -32,7 +32,7 @@ fn main() {
     let blockchains: Vec<Blockchain> = match blockchain_loaded_result {
         Ok(val) => val,
         Err(()) => {
-            println!("Could not load initial blockchain...");
+            println!("Error: Could not load initial blockchain...");
             vec![]
         }
     };
@@ -97,14 +97,17 @@ fn main() {
     });
 
    
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:8001").expect("Could not bind server to address");
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:8001").expect("Error: Could not bind server to address");
     println!("Server listening on 127.0.0.1:8001");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 print!("New TCP Stream Detected");
-                let blockchain_copy: Arc<RwLock<Blockchain>> = Arc::clone(&blockchain_arc);
-                std::thread::spawn( || handle_client(stream, blockchain_copy));
+                let blockchain_copy = Arc::clone(&blockchain_arc);
+                std::thread::spawn(move || {
+                    let mut blockchain_copy_w = blockchain_copy.write().unwrap();
+                    handle_client(stream, &mut blockchain_copy_w);
+                });
             },
             Err(e) => {
                 eprint!("Error: could not read the stream -- {}", e);
@@ -114,7 +117,7 @@ fn main() {
 }
 
 fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
-    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8001")?;
+    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
     println!("Connected to peer!");
 
     let message = "GET /blocks";
@@ -127,16 +130,32 @@ fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
 
     let mut buffer: Vec<u8> = vec![0u8; msg_len];
     stream.read_exact(&mut buffer)?;
-    let blocks: Vec<Block> = bincode::deserialize(&buffer).expect("Could not deserialize blocks");
+    let blocks: Vec<Block> = bincode::deserialize(&buffer).expect("Error: Could not deserialize blocks");
     blockchain.blocks = blocks;
     blockchain.choose_valid_chain_and_update_utxo();
 
     Ok(())
 }
+
+fn propagate_block(block: &Block) -> io::Result<()> {
+    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
+    println!("Connected to peer!");
+    let message: &'static str = "PROPAGATE_BLOCK";
+    stream.write_all(message.as_bytes()).expect("Error: Could not write message to propagate block");
+
+
+    let block_bytes: Vec<u8> = bincode::serialize(&block).expect("Error: Could not serialize block");
+    let len = (block_bytes.len() as u32).to_be_bytes();
+
+    stream.write(&len).expect("Error: Could not send message length delimiter");
+    stream.write(block_bytes.as_slice()).expect("Error: Could not send blocks to tcp client");
+    
+    Ok(())
+}
+
 // node server
-fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
+fn handle_client(mut stream: TcpStream, blockchain: &mut Blockchain) {
     let mut buffer: [u8; 1024] = [0; 1024];
-    let blockchain = blockchain.read().unwrap();
     stream.read(&mut buffer).expect("Failed to read request buffer");
     
     let request_str: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buffer[..]);
@@ -148,7 +167,7 @@ fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
         let blocks_bytes: Vec<u8> = match blocks_bytes_result {
             Ok(val) => val,
             Err(_e) => {
-                println!("Could not serialize blocks into bytes");
+                println!("Error: Could not serialize blocks into bytes");
                 vec![]
             }
         };
@@ -159,17 +178,26 @@ fn handle_client(mut stream: TcpStream, blockchain: Arc<RwLock<Blockchain>>) {
 
         let len = (blocks_bytes.len() as u32).to_be_bytes();
 
-        stream.write(&len).expect("Could not send message length delimiter");
-        stream.write(blocks_bytes.as_slice()).expect("Could not send blocks to tcp client");
+        stream.write(&len).expect("Error: Could not send message length delimiter");
+        stream.write(blocks_bytes.as_slice()).expect("Error: Could not send blocks to tcp client");
         return;
-    } else if request_str.contains("GET /utxo") {
-        
-    } else if request_str.contains("POST /new_tx") {
+    } else if request_str.contains("PROPAGATE_BLOCK") {
+        let mut len_buf: [u8; 4] = [0u8; 4];
+        stream.read_exact(&mut len_buf).expect("Error: Could not read length delimiter");
+        let msg_len: usize = u32::from_be_bytes(len_buf) as usize;
+
+        let mut buffer: Vec<u8> = vec![0u8; msg_len];
+        stream.read_exact(&mut buffer).expect("Error: Could not read block buffer");
+        let mut block: Block = bincode::deserialize(&buffer).expect("Error: Could not deserialize blocks");
+
+        block.mine_block();
+        // PROBLEM: This blockchain refers to the one in this function (and not the one in main)
+        blockchain.accept_new_block(&block);
 
     }
 
     let response: &[u8] = "Error: Could not send blocks...".as_bytes();
-    stream.write(response).expect("Could not send back response...");
+    stream.write(response).expect("Error: Could not send back response...");
 
 }
 
@@ -177,7 +205,7 @@ fn compute_balance(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
     let utxo: &Vec<Tx> = &blockchain.utxo;
     let mut account_index_str: String = String::new();
     println!("\nAccount Index: ");
-    io::stdin().read_line(&mut account_index_str).expect("Failed to read line...");
+    io::stdin().read_line(&mut account_index_str).expect("Error: Failed to read line...");
     let account_index: usize = account_index_str.trim().parse().unwrap();
     let mut computed_balance: u64 = 0;
 
@@ -214,11 +242,11 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
     let mut amount_str: String = String::new();
 
     println!("\nSender Account Index: ");
-    io::stdin().read_line(&mut sender_account_index_str).expect("Failed to read line");
+    io::stdin().read_line(&mut sender_account_index_str).expect("Error: Failed to read line");
     println!("\nRecipient Account Index: ");
-    io::stdin().read_line(&mut recipient_account_index_str).expect("Failed to read line");
+    io::stdin().read_line(&mut recipient_account_index_str).expect("Error: Failed to read line");
     println!("\nAmount of Money: ");
-    io::stdin().read_line(&mut amount_str).expect("Failed to read line");
+    io::stdin().read_line(&mut amount_str).expect("Error: Failed to read line");
 
     let sender_account_index: usize = sender_account_index_str.trim().parse().unwrap();
     let recipient_account_index: usize = recipient_account_index_str.trim().parse().unwrap();
@@ -273,6 +301,7 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
     block.mine_block();
     blockchain.accept_new_block(&block);
 
+    let _ = propagate_block(&block);
 }
 
 fn get_utxo(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
