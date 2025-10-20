@@ -120,8 +120,8 @@ fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
     let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
     println!("Connected to peer!");
 
-    let message = "GET /blocks";
-    stream.write_all(message.as_bytes())?;
+    let handshake_number: [u8; 1] = [1];
+    stream.write_all(&handshake_number)?;
 
     println!("Request to retrieve blocks is sent...");
     let mut len_buf: [u8; 4] = [0u8; 4];
@@ -140,9 +140,9 @@ fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
 fn propagate_block(block: &Block) -> io::Result<()> {
     let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
     println!("Connected to peer!");
-    let message: &'static str = "PROPAGATE_BLOCK";
-    stream.write_all(message.as_bytes()).expect("Error: Could not write message to propagate block");
 
+    let handshake_number: [u8; 1] = [2];
+    stream.write_all(&handshake_number).expect("Error: Could not write handshake number to propagate block");
 
     let block_bytes: Vec<u8> = bincode::serialize(&block).expect("Error: Could not serialize block");
     let len = (block_bytes.len() as u32).to_be_bytes();
@@ -155,13 +155,13 @@ fn propagate_block(block: &Block) -> io::Result<()> {
 
 // node server
 fn handle_client(mut stream: TcpStream, blockchain: &mut Blockchain) {
-    let mut buffer: [u8; 1024] = [0; 1024];
-    stream.read(&mut buffer).expect("Failed to read request buffer");
-    
-    let request_str: std::borrow::Cow<'_, str> = String::from_utf8_lossy(&buffer[..]);
-    println!("Request received: {}", request_str);
+    let mut buffer: [u8; 1] = [0; 1];
+    stream.read_exact(&mut buffer).expect("Failed to read request buffer");
 
-    if request_str.contains("GET /blocks") {
+    let handshake_number: u8 = buffer[0];
+
+    // get blocks request
+    if handshake_number == 1 {
         let blocks: Vec<Block> = blockchain.blocks.clone();
         let blocks_bytes_result: Result<Vec<u8>, Box<bincode::ErrorKind>> = bincode::serialize(&blocks);
         let blocks_bytes: Vec<u8> = match blocks_bytes_result {
@@ -181,7 +181,7 @@ fn handle_client(mut stream: TcpStream, blockchain: &mut Blockchain) {
         stream.write(&len).expect("Error: Could not send message length delimiter");
         stream.write(blocks_bytes.as_slice()).expect("Error: Could not send blocks to tcp client");
         return;
-    } else if request_str.contains("PROPAGATE_BLOCK") {
+    } else if handshake_number == 2 {
         let mut len_buf: [u8; 4] = [0u8; 4];
         stream.read_exact(&mut len_buf).expect("Error: Could not read length delimiter");
         let msg_len: usize = u32::from_be_bytes(len_buf) as usize;
@@ -191,9 +191,9 @@ fn handle_client(mut stream: TcpStream, blockchain: &mut Blockchain) {
         let mut block: Block = bincode::deserialize(&buffer).expect("Error: Could not deserialize blocks");
 
         block.mine_block();
-        // PROBLEM: This blockchain refers to the one in this function (and not the one in main)
         blockchain.accept_new_block(&block);
-
+    } else {
+        println!("Network error: Received an invalid TCP handshake");
     }
 
     let response: &[u8] = "Error: Could not send blocks...".as_bytes();
