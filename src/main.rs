@@ -49,7 +49,7 @@ fn main() {
     };
 
     let mut blockchain: Blockchain = Blockchain::new();
-    if blockchains.len() == 0 { // load genesis block
+    if blockchains.len() == 0 {
         let blocks_result: Result<(), io::Error> = get_blocks(&mut blockchain, &peer_url);
         match blocks_result {
             Ok(()) => {
