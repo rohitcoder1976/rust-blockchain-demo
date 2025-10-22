@@ -17,13 +17,24 @@ use rand::Rng;
 use util::disk::{load_branches_from_file, load_keypairs_from_file};
 
 fn main() {
+    let mut url: String = String::new();
+    println!("Please enter the URL where you would like to host this node instance (localhost URLs are the norm):");
+    io::stdin().read_line(&mut url).expect("Failed to read line...");
+
+    let mut peer_url: String = String::new();
+    println!("\nPlease enter the URL of this node's trusted peer:");
+    io::stdin().read_line(&mut peer_url).expect("Failed to read line...");
+
+    url = url.trim().to_string();
+    peer_url = peer_url.trim().to_string();
+
     let keypairs_result: Result<Vec<KeyPair>, ()> = load_keypairs_from_file();
     let keypairs: Vec<KeyPair> = match keypairs_result {
         Ok(val) => {
             println!("Imported Key Pairs...");
             val
         },
-        Err(e) => {
+        Err(_e) => {
             panic!("Failed to import key pairs...");
         } 
     };
@@ -39,7 +50,7 @@ fn main() {
 
     let mut blockchain: Blockchain = Blockchain::new();
     if blockchains.len() == 0 { // load genesis block
-        let blocks_result: Result<(), io::Error> = get_blocks(&mut blockchain);
+        let blocks_result: Result<(), io::Error> = get_blocks(&mut blockchain, &peer_url);
         match blocks_result {
             Ok(()) => {
                 println!("Retrieved blocks from node...");
@@ -84,7 +95,7 @@ fn main() {
                 }
                 "3" => {
                     let mut blockchain = blockchain_copy.write().unwrap();
-                    send_money(&mut blockchain, &keypairs);
+                    send_money(&mut blockchain, &keypairs, &peer_url);
                 }
                 "4" => {
                     let blockchain = blockchain_copy.read().unwrap();
@@ -97,8 +108,8 @@ fn main() {
     });
 
    
-    let listener: TcpListener = TcpListener::bind("127.0.0.1:8001").expect("Error: Could not bind server to address");
-    println!("Server listening on 127.0.0.1:8001");
+    let listener: TcpListener = TcpListener::bind(&url.clone()).expect("Error: Could not bind server to address");
+    println!("Server listening on {}", url);
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
@@ -116,8 +127,8 @@ fn main() {
     }
 }
 
-fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
-    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
+fn get_blocks(blockchain: &mut Blockchain, peer_url: &String) -> io::Result<()> {
+    let mut stream: TcpStream = TcpStream::connect(peer_url)?;
     println!("Connected to peer!");
 
     let handshake_number: [u8; 1] = [1];
@@ -137,8 +148,8 @@ fn get_blocks(blockchain: &mut Blockchain) -> io::Result<()> {
     Ok(())
 }
 
-fn propagate_block(block: &Block) -> io::Result<()> {
-    let mut stream: TcpStream = TcpStream::connect("127.0.0.1:8080")?;
+fn propagate_block(block: &Block, peer_url: &String) -> io::Result<()> {
+    let mut stream: TcpStream = TcpStream::connect(peer_url)?;
     println!("Connected to peer!");
 
     let handshake_number: [u8; 1] = [2];
@@ -235,7 +246,7 @@ fn get_blockchain(blockchain: &Blockchain) {
     }
 }
 
-fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
+fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>, peer_url: &String) {
     let utxo: &Vec<Tx> = &blockchain.utxo;
     let mut sender_account_index_str: String = String::new();
     let mut recipient_account_index_str: String = String::new();
@@ -301,7 +312,7 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>) {
     block.mine_block();
     blockchain.accept_new_block(&block);
 
-    let _ = propagate_block(&block);
+    let _ = propagate_block(&block, &peer_url);
 }
 
 fn get_utxo(blockchain: &Blockchain, keypairs: &Vec<KeyPair>) {
