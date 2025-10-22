@@ -69,7 +69,7 @@ fn main() {
     std::thread::spawn(move || {
         loop {
             let mut choice: String = String::new();
-            println!("What can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
+            println!("\nWhat can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
             io::stdin().read_line(&mut choice).expect("Failed to read line...");
             choice = choice.trim().to_string();
 

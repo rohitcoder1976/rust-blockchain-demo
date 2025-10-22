@@ -229,13 +229,11 @@ impl Blockchain {
     pub fn update_utxo(&mut self){
         let mut new_utxo: Vec<Tx> = vec![];
 
-        let mut block_index = 0; 
         for block in &self.blocks {
             // go through each transaction in the new block
             for tx in &block.txs.base {
                 // if no previous transaction to point to (coinbase transaction)
                 if tx.inputs[0].is_coinbase { 
-                    println!("Coinbase transaction in block {0}. Amount is ${1}", block_index, &tx.outputs[0].amount);
                     new_utxo.push(tx.clone());
                 } else {
                     // iterate through each input for every transaction in the block
@@ -276,11 +274,6 @@ impl Blockchain {
                     new_utxo.push(tx.clone());
                 }
             }
-            block_index += 1;
-        }
-
-        for tx_in_new_utxo in &new_utxo {
-            println!("${0} for {1}", tx_in_new_utxo.outputs[0].amount, tx_in_new_utxo.outputs[0].pub_key.hash_key());
         }
 
         self.utxo = new_utxo;
