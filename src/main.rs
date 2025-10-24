@@ -26,7 +26,7 @@ fn main() {
     io::stdin().read_line(&mut peer_url).expect("Failed to read line...");
 
     let mut branches_filename: String = String::new();
-    println!("\nPlease enter the binary file name where you would like this node to store, read, and write chains to disk (INCLUDE the extension .bin):");
+    println!("\nPlease enter the binary file name where you would like this node to store, read, and write all chain branches to disk (INCLUDE the extension .bin):");
     io::stdin().read_line(&mut branches_filename).expect("Failed to read line...");
 
     url = url.trim().to_string();
