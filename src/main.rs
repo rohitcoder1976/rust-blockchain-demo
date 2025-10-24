@@ -25,8 +25,13 @@ fn main() {
     println!("\nPlease enter the URL of this node's trusted peer:");
     io::stdin().read_line(&mut peer_url).expect("Failed to read line...");
 
+    let mut branches_filename: String = String::new();
+    println!("\nPlease enter the binary file name where you would like this node to store, read, and write chains to disk (INCLUDE the extension .bin):");
+    io::stdin().read_line(&mut branches_filename).expect("Failed to read line...");
+
     url = url.trim().to_string();
     peer_url = peer_url.trim().to_string();
+    branches_filename = branches_filename.trim().to_string();
 
     let keypairs_result: Result<Vec<KeyPair>, ()> = load_keypairs_from_file();
     let keypairs: Vec<KeyPair> = match keypairs_result {
@@ -39,7 +44,7 @@ fn main() {
         } 
     };
 
-    let blockchain_loaded_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
+    let blockchain_loaded_result: Result<Vec<Blockchain>, ()> = load_branches_from_file(&branches_filename);
     let blockchains: Vec<Blockchain> = match blockchain_loaded_result {
         Ok(val) => val,
         Err(()) => {
@@ -50,13 +55,13 @@ fn main() {
 
     let mut blockchain: Blockchain = Blockchain::new();
     if blockchains.len() == 0 {
-        let blocks_result: Result<(), io::Error> = get_blocks(&mut blockchain, &peer_url);
+        let blocks_result: Result<(), io::Error> = get_blocks(&mut blockchain, &peer_url, &branches_filename);
         match blocks_result {
             Ok(()) => {
                 println!("Retrieved blocks from node...");
             },
             Err(e) => {
-                blockchain.load_genesis_block(&keypairs[0].pub_key);
+                blockchain.load_genesis_block(&keypairs[0].pub_key, &branches_filename);
                 eprint!("Failed to retrieve blocks from node: {}", e);
             }
         }
@@ -75,7 +80,12 @@ fn main() {
     }
 
     let blockchain_arc: Arc<RwLock<Blockchain>> = Arc::new(RwLock::new(blockchain));
+
     let blockchain_copy: Arc<RwLock<Blockchain>> =  Arc::clone(&blockchain_arc);
+    
+
+    let branches_filename_input_arc = Arc::new(RwLock::new(branches_filename.clone()));
+    let branches_filename_tcp_arc = Arc::new(RwLock::new(branches_filename));
 
     std::thread::spawn(move || {
         loop {
@@ -83,6 +93,9 @@ fn main() {
             println!("\nWhat can I do for you?\n1. Get Blockchain\n2. Compute Balance\n3. Send Money\n4. Get UTXO\n(Q to Exit)");
             io::stdin().read_line(&mut choice).expect("Failed to read line...");
             choice = choice.trim().to_string();
+
+            let branches_filename_copy = Arc::clone(&branches_filename_input_arc);
+            let branches_filename_copy_r = branches_filename_copy.read().unwrap();
 
             match choice.trim() {
                 "1" => {
@@ -95,7 +108,7 @@ fn main() {
                 }
                 "3" => {
                     let mut blockchain = blockchain_copy.write().unwrap();
-                    send_money(&mut blockchain, &keypairs, &peer_url);
+                    send_money(&mut blockchain, &keypairs, &peer_url, &branches_filename_copy_r);
                 }
                 "4" => {
                     let blockchain = blockchain_copy.read().unwrap();
@@ -109,15 +122,19 @@ fn main() {
 
    
     let listener: TcpListener = TcpListener::bind(&url.clone()).expect("Error: Could not bind server to address");
+
     println!("Server listening on {}", url);
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 print!("New TCP Stream Detected");
                 let blockchain_copy = Arc::clone(&blockchain_arc);
+                let branches_filename_copy = Arc::clone(&branches_filename_tcp_arc);
+
                 std::thread::spawn(move || {
                     let mut blockchain_copy_w = blockchain_copy.write().unwrap();
-                    handle_client(stream, &mut blockchain_copy_w);
+                    let branches_filename_copy_r = branches_filename_copy.read().unwrap();
+                    handle_client(stream, &mut blockchain_copy_w, &branches_filename_copy_r);
                 });
             },
             Err(e) => {
@@ -127,7 +144,7 @@ fn main() {
     }
 }
 
-fn get_blocks(blockchain: &mut Blockchain, peer_url: &String) -> io::Result<()> {
+fn get_blocks(blockchain: &mut Blockchain, peer_url: &String, branches_filename: &String) -> io::Result<()> {
     let mut stream: TcpStream = TcpStream::connect(peer_url)?;
     println!("Connected to peer!");
 
@@ -143,7 +160,7 @@ fn get_blocks(blockchain: &mut Blockchain, peer_url: &String) -> io::Result<()> 
     stream.read_exact(&mut buffer)?;
     let blocks: Vec<Block> = bincode::deserialize(&buffer).expect("Error: Could not deserialize blocks");
     blockchain.blocks = blocks;
-    blockchain.choose_valid_chain_and_update_utxo();
+    blockchain.choose_valid_chain_and_update_utxo(branches_filename);
 
     Ok(())
 }
@@ -165,7 +182,7 @@ fn propagate_block(block: &Block, peer_url: &String) -> io::Result<()> {
 }
 
 // node server
-fn handle_client(mut stream: TcpStream, blockchain: &mut Blockchain) {
+fn handle_client(mut stream: TcpStream, blockchain: &mut Blockchain, branches_filename: &String) {
     let mut buffer: [u8; 1] = [0; 1];
     stream.read_exact(&mut buffer).expect("Failed to read request buffer");
 
@@ -199,10 +216,9 @@ fn handle_client(mut stream: TcpStream, blockchain: &mut Blockchain) {
 
         let mut buffer: Vec<u8> = vec![0u8; msg_len];
         stream.read_exact(&mut buffer).expect("Error: Could not read block buffer");
-        let mut block: Block = bincode::deserialize(&buffer).expect("Error: Could not deserialize blocks");
+        let block: Block = bincode::deserialize(&buffer).expect("Error: Could not deserialize blocks");
 
-        block.mine_block();
-        blockchain.accept_new_block(&block);
+        blockchain.accept_new_block(&block, branches_filename);
     } else {
         println!("Network error: Received an invalid TCP handshake");
     }
@@ -246,7 +262,7 @@ fn get_blockchain(blockchain: &Blockchain) {
     }
 }
 
-fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>, peer_url: &String) {
+fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>, peer_url: &String, branches_filename: &String) {
     let utxo: &Vec<Tx> = &blockchain.utxo;
     let mut sender_account_index_str: String = String::new();
     let mut recipient_account_index_str: String = String::new();
@@ -310,7 +326,7 @@ fn send_money(blockchain: &mut Blockchain, keypairs: &Vec<KeyPair>, peer_url: &S
 
     let mut block: Block = Block::new(&vec![miner_transaction, transaction], blockchain.blocks[blockchain.blocks.len()-1].block_header.hash_block());
     block.mine_block();
-    blockchain.accept_new_block(&block);
+    blockchain.accept_new_block(&block, branches_filename);
 
     let _ = propagate_block(&block, &peer_url);
 }

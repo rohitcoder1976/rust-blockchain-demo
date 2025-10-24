@@ -2,8 +2,8 @@ use std::{fs::File, io::{self, Read, Write}};
 
 use crate::classes::{block::blockchain::Blockchain, lamport_signature::key_pair::KeyPair};
 
-pub fn save_chain_branches_to_file(chains: &Vec<Blockchain>) -> Result<(), ()> {
-    let file_result = File::create("branches.bin");
+pub fn save_chain_branches_to_file(chains: &Vec<Blockchain>, branches_filename: &String) -> Result<(), ()> {
+    let file_result = File::create(branches_filename);
     let mut file: File = match file_result {
         Ok(val) => val,
         Err(_err) => {
@@ -27,8 +27,8 @@ pub fn save_chain_branches_to_file(chains: &Vec<Blockchain>) -> Result<(), ()> {
     return Ok(());
 }
 
-pub fn load_branches_from_file() -> Result<Vec<Blockchain>, ()> {
-    let file_result: Result<File, io::Error> = File::open("branches.bin");
+pub fn load_branches_from_file(branches_filename: &String) -> Result<Vec<Blockchain>, ()> {
+    let file_result: Result<File, io::Error> = File::open(branches_filename);
     let mut file = match file_result {
         Ok(val) => val,
         Err(_err) => {

@@ -18,4 +18,4 @@ cargo run
 
 ## Things to Note
 
-The `keypairs.bin` file stores the private/public key pairs for two accounts (one with account index of `0 ` and another with `1`). This program is, of course, capable of handling a ledger with more than one account, but, for simplicity and demonstration purposes, only two are stored in disk.
+The `keypairs.bin` file stores the private/public key pairs for two accounts (one with account index of `0` and another with `1`). This program is, of course, capable of handling a ledger with more than one account, but, for simplicity and demonstration purposes, only two are stored in disk.

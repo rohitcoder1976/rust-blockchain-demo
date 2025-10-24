@@ -20,7 +20,7 @@ impl Blockchain {
         };
     }
 
-    pub fn accept_new_block(&mut self, block: &Block) {
+    pub fn accept_new_block(&mut self, block: &Block, branches_filename: &String) {
         let prev_block_hash = &block.block_header.prev_block_hash;
         let mut found_prev_block: bool = false;
 
@@ -41,7 +41,7 @@ impl Blockchain {
 
         // if not in the valid chain, check in the chains stored in disk
         if !found_prev_block {
-            let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
+            let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file(branches_filename);
             let mut loaded_branch_chains: Vec<Blockchain> = match loaded_branch_chains_result {
                 Ok(val) => val,
                 Err(()) => vec![],
@@ -132,14 +132,14 @@ impl Blockchain {
         /* if the new block is verified within a disk stored branch, then push all of the blocks in all chains, except for the last one in the branch
             that the new block exists in, of the branch to the valid chain manually. then call add_new_block to add the last block, while also computing the branches within the chain and picking the new valid chain */ 
         if block_verified {
-            self.insert_disk_blocks();
+            self.insert_disk_blocks(branches_filename);
             self.blocks.push(block.clone());
-            self.choose_valid_chain_and_update_utxo();
+            self.choose_valid_chain_and_update_utxo(branches_filename);
         }
 
     }
 
-    pub fn choose_valid_chain_and_update_utxo(&mut self) {
+    pub fn choose_valid_chain_and_update_utxo(&mut self, branches_filename: &String) {
         let mut branches_block_hashes: Vec<Vec<String>> = vec![];
         
         let reversed_blocks: &Vec<Block> = &self.blocks.iter().rev().cloned().collect();
@@ -206,7 +206,7 @@ impl Blockchain {
                 branches.push(branch);
             }
 
-            match save_chain_branches_to_file(&branches) {
+            match save_chain_branches_to_file(&branches, branches_filename) {
                 Ok(()) => {
                     println!("Saved branches to disk...");
                 },
@@ -215,7 +215,7 @@ impl Blockchain {
 
             self.blocks = branches[biggest_branch_block_hashes_index].blocks.clone();
         } else {
-            match save_chain_branches_to_file(&vec![self.clone()]) {
+            match save_chain_branches_to_file(&vec![self.clone()], branches_filename) {
                 Ok(()) => {
                     println!("Saved branches to disk...");
                 },
@@ -279,7 +279,7 @@ impl Blockchain {
         self.utxo = new_utxo;
     }
 
-    pub fn load_genesis_block(&mut self, pub_key: &Key){
+    pub fn load_genesis_block(&mut self, pub_key: &Key, branches_filename: &String){
         let tx_inputs: Vec<TxInput> = vec![TxInput::new(initialize_empty_key_blocks(), "".to_string(), true, 0)];
         let tx_outputs: Vec<TxOutput> = vec![TxOutput::new(pub_key.clone(), 100)];
         let tx: Tx = Tx::new(tx_inputs, tx_outputs);
@@ -298,7 +298,7 @@ impl Blockchain {
 
         self.blocks.push(block);
 
-        match save_chain_branches_to_file(&vec![self.clone()]) {
+        match save_chain_branches_to_file(&vec![self.clone()], branches_filename) {
             Ok(()) => {},
             Err(()) => {println!("Could not save genesis block to disk...")}
         };
@@ -306,8 +306,8 @@ impl Blockchain {
         self.update_utxo();
     }
 
-    fn insert_disk_blocks(&mut self) {
-        let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file();
+    fn insert_disk_blocks(&mut self, branches_filename: &String) {
+        let loaded_branch_chains_result: Result<Vec<Blockchain>, ()> = load_branches_from_file(branches_filename);
         let loaded_branch_chains: Vec<Blockchain> = match loaded_branch_chains_result {
             Ok(val) => val,
             Err(()) => vec![],
