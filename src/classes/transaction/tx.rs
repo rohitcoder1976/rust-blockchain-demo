@@ -144,7 +144,7 @@ impl Tx {
 
             let pub_key: Key = pub_key_option.unwrap();
 
-            let mut j= 0;
+            let mut j = 0;
             for bit in &tx_hash_bits {
                 if *bit == (0 as u8) {
                     // get the corresponding public key block from zero blocks
@@ -189,7 +189,6 @@ impl TxInput {
             signature,
             prev_tx_id,
             is_coinbase,
-            // TODO: index is hardcoded for simplicity. add a simple mechanism to check which index to use later
             index
         };
     }

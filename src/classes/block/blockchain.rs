@@ -177,10 +177,7 @@ impl Blockchain {
             branches_block_hashes.push(branch_block_hashes);
         }
 
-        // println!(">> DEBUG:");
-
         if branches_block_hashes.len() > 1 {
-            // println!("LOG: Uh oh! Branch!! Number of branches: {}", branches_block_hashes.len());
             let mut i: usize = 0;
             let mut biggest_branch_block_hashes_index: usize = 0;
             let mut biggest_branch_block_hashes_num: usize = 0;
@@ -246,7 +243,7 @@ impl Blockchain {
                         let prev_tx_index: usize = new_tx_input.index;
 
                         let mut utxo_tx_index: usize = 0;
-                        let mut found_matching_output= false;
+                        let mut found_matching_output = false;
                         for utxo_tx in new_utxo.clone() {
                             let utxo_tx_id: String = utxo_tx.get_tx_id();
                             let mut deleted_utxo_tx = false;
