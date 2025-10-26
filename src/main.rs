@@ -1,6 +1,7 @@
 mod classes;
 mod util;
 mod data_structures;
+mod misc;
 
 use std::io;
 use std::io::{Read, Write};
@@ -12,6 +13,7 @@ use classes::block::block::Block;
 use classes::block::blockchain::Blockchain;
 use classes::lamport_signature::key_pair::{KeyPair, initialize_empty_key_blocks};
 use classes::transaction::tx::{Tx, TxInput, TxOutput};
+use misc::playground::{test_blockchain_fork_detection};
 
 use rand::Rng;
 use util::disk::{load_branches_from_file, load_keypairs_from_file};
@@ -33,6 +35,7 @@ fn main() {
     peer_url = peer_url.trim().to_string();
     branches_filename = branches_filename.trim().to_string();
 
+
     let keypairs_result: Result<Vec<KeyPair>, ()> = load_keypairs_from_file();
     let keypairs: Vec<KeyPair> = match keypairs_result {
         Ok(val) => {
@@ -43,6 +46,9 @@ fn main() {
             panic!("Failed to import key pairs...");
         } 
     };
+
+    // uncomment to test fork detection:
+    // test_blockchain_fork_detection(&keypairs[0].pub_key);
 
     let blockchain_loaded_result: Result<Vec<Blockchain>, ()> = load_branches_from_file(&branches_filename);
     let blockchains: Vec<Blockchain> = match blockchain_loaded_result {
