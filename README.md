@@ -24,6 +24,15 @@ cargo run
 
 - Avoid inputting the same filename (for storing chain branches) for both node instances.
 
+## Future Plans
+
+I plan to make this blockchain fully trustless soon by incorporating the following features:
+
+- Adding "peerlists" and "malicious lists" functionality
+- Allowing each node to have its own pub/priv key pair (instead of a shared `keypairs.bin` for demonstration purposes).
+- Since in this next rendition, all nodes will have their own pub/priv key, a CLI and TCP networking feature to share bulky public keys to make transactions will be implemented.
+- All coinbase transactions in a block mined by a specific node will be owned by the public key that specific node owns.
+
 ## Explanation of Various Self-Devised Algorithms
 
 ### Chain Identification and Validation
